@@ -3,9 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project (media)
  
-set(CMAKE_INSTALL_PREFIX
-    ${CMAKE_INSTALL_PREFIX}/ThirdLib/media
-)
+#set(CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX}/ThirdLib/media) #CMAKE_INSTALL_PREFIX 外面设置，内部设置无效
 
 # 设置C++标准为C++11
 set(CMAKE_CXX_STANDARD 11)
@@ -52,12 +50,12 @@ target_include_directories(media PUBLIC
 
 # 安装库文件  
 install(TARGETS media  
-        DESTINATION lib)  # 库文件的安装目录  
+        DESTINATION ThirdLib/media/lib)  # 库文件的安装目录  
 
 # 安装头文件  
-file(GLOB PUBLIC_HEADERS "${PROJECT_SOURCE_DIR}/include/*.h")
+file(GLOB PUBLIC_HEADERS "${PROJECT_SOURCE_DIR}/src/include/*.h")
 install(FILES ${PUBLIC_HEADERS}  
-        DESTINATION include)  # 头文件的安装目录
+        DESTINATION ThirdLib/media/include)  # 头文件的安装目录
 
 
 
