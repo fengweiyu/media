@@ -792,6 +792,7 @@ int H264Handle::GetFrame(T_MediaFrameInfo *m_ptFrame)
 	iRemainDataLen = m_ptFrame->iFrameBufLen;
     m_ptFrame->dwNaluCount = 0;
     m_ptFrame->iFrameLen = 0;
+    m_ptFrame->pbFrameStartPos = NULL;
     while(iRemainDataLen > 0)
     {
         if (iRemainDataLen >= 3 && pcFrameData[0] == 0 && pcFrameData[1] == 0 && pcFrameData[2] == 1)
@@ -907,7 +908,10 @@ int H264Handle::SetH264NaluData(unsigned char i_bNaluType,unsigned char i_bStart
         MH_LOGE("SetH264NaluData NULL %d \r\n", i_iNaluDataLen);
         return iRet;
     }
-    
+    if (i_bNaluType == 12)
+    {//去掉填充nalu type
+        return iRet;//过滤无用的nalu
+    }
     if(m_ptFrame->pbFrameStartPos == NULL)
     {
         m_ptFrame->pbFrameStartPos = i_pbNaluData;
