@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <title>MediaConvert.js demo</title>
+  </head>
+
+  <body>
+    <script src="./build/MediaConvert.js"></script>
+
+    <center>
+        <h1><a href="">MediaConvert.js demo</a></h1>
+        <input type="file" id="fileInput" accept=".flv,.h264,.h265"/>  
+        <br><br>
+        <button id="saveButton" disabled>格式转换</button>
+
+        <h2>请选择一个输出格式:</h2>  
+        <label>  
+            <input type="checkbox" name="options" value="flv" > flv  
+        </label>  
+        <label>  
+            <input type="checkbox" name="options" value="mp4" checked> mp4  
+        </label>  
+        <label>  
+            <input type="checkbox" name="options" value="raw"> raw  
+        </label>
+        
+        
+    </center>
+
+    <script>
+        // 获取所有复选框  
+        const checkboxes = document.querySelectorAll('input[type="checkbox"][name="options"]');  
+
+        checkboxes.forEach(checkbox => 
+        {  
+            checkbox.addEventListener('change', function() 
+            {  
+                if (this.checked) {  
+                    // 如果当前复选框被选中，取消选中其他复选框  
+                    checkboxes.forEach(cb => 
+                    {  
+                        if (cb !== this) 
+                        {  
+                            cb.checked = false; // 取消其他复选框的选中状态  
+                        }  
+                    });  
+                }  
+            });  
+        });  
+        const fileInput = document.getElementById('fileInput');  
+        const saveButton = document.getElementById('saveButton');  
+        let arrayBuffer;  
+        let filename;
+        let filetype;
+        fileInput.addEventListener('change', function(event) 
+        {  
+            const file = event.target.files[0]; // 获取选中的文件  
+            if (file) 
+            {  
+                const reader = new FileReader(); 
+                var name=file.name;                
+                const parts = name.split('.'); // 根据 . 分割文件名 
+                filename=parts[0];
+                filetype='.'+parts[1];
+                //filename=name.substring(0, name.lastIndexOf('.')); 
+                // 读取文件为 ArrayBuffer  
+                reader.onload = function(e) 
+                {  
+                    arrayBuffer = e.target.result; // 将文件内容保存到 ArrayBuffer  
+                    //console.log('File read as ArrayBuffer:', arrayBuffer);  
+                    saveButton.disabled = false; // 启用保存按钮  
+                    console.log('file:'+filename+' type:'+filetype+' byteLength:'+arrayBuffer.byteLength); 
+                };  
+                reader.readAsArrayBuffer(file); // 开始读取文件  
+            }  
+        });  
+        saveButton.addEventListener('click', function() 
+        {  
+            if (!arrayBuffer)
+            {
+                console.log('file err:'+filename+' type:'+filetype+' byteLength:'+arrayBuffer.byteLength); 
+                return;      
+            }
+            console.log('file addEventListener:'+filename+' type:'+filetype+' byteLength:'+arrayBuffer.byteLength);    
+            // 选择所有的复选框  
+            Module.onRuntimeInitialized = function() 
+            {
+                console.log('file onRuntimeInitialized:'+filename+' type:'+filetype+' byteLength:'+arrayBuffer.byteLength); 
+                Module._InputData(arrayBuffer.buffer,arrayBuffer.byteLength);
+                const buffer = new ArrayBuffer(arrayBuffer.byteLength); 
+                const uint8View = new Uint8Array(buffer); 
+                var ret; 
+                do {  
+
+                    ret = Module._GetData(uint8View.byteOffset,uint8View.byteLength);//arrayBuffer.buffer arrayBuffer.byteOffset
+                } while (0); 
+                const copiedArray = uint8View.slice(0, ret);
+                
+                
+                const selectedHobbies = [];  
+                // 遍历复选框，检测哪些被选中  
+                checkboxes.forEach(checkbox => {  
+                    if (checkbox.checked) 
+                    {  
+                        selectedHobbies.push(checkbox.value); // 添加到数组  
+                    }  
+                }); 
+                // 创建 Blob 对象  
+                const blob = new Blob([copiedArray]);  
+                // 创建下载链接  
+                const url = URL.createObjectURL(blob);  
+                const a = document.createElement('a');  
+                a.href = url;  
+                a.download = filename+'.'+selectedHobbies[0]; // 指定下载文件名  
+                document.body.appendChild(a);  
+                a.click(); // 自动点击下载链接  
+                document.body.removeChild(a); // 下载后移除临时链接  
+
+                // 释放 Blob URL  
+                URL.revokeObjectURL(url);  
+            }
+
+        }); 
+        function formatDate(date) 
+        {  
+            const currentDate = new Date();  
+            const year = currentDate.getFullYear();  
+            const month = String(currentDate.getMonth() + 1).padStart(2, '0'); // 月份从0开始  
+            const day = String(currentDate.getDate()).padStart(2, '0');  
+            const hours = String(currentDate.getHours()).padStart(2, '0');  
+            const minutes = String(currentDate.getMinutes()).padStart(2, '0');  
+            const seconds = String(currentDate.getSeconds()).padStart(2, '0');  
+            const milliseconds = String(currentDate.getMilliseconds()).padStart(3, '0');
+
+            const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`; 
+            return formattedDate;  
+        } 
+        //自执行函数：我们使用一个自执行函数来封装代码，确保不会污染全局命名空间
+        (function() {  
+            const originalLog = console.log;  
+
+            console.log = function(...args) {  
+                const now = new Date();  
+                const timeStamp = formatDate(now);  //now.toISOString(); // 或者使用自定义格式  
+                originalLog.apply(console, [`[${timeStamp}]`, ...args]);  
+            };  
+        })(); 
+        
+    </script>
+  </body>
+</html>
