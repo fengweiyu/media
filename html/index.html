@@ -5,8 +5,8 @@
   </head>
 
   <body>
-    <script src="./build/MediaConvert.js"></script>
-
+    
+    <script type="text/javascript" src="./build/MediaConvert.js"></script>
     <center>
         <h1><a href="">MediaConvert.js demo</a></h1>
         <input type="file" id="fileInput" accept=".flv,.h264,.h265"/>  
@@ -28,6 +28,10 @@
     </center>
 
     <script>
+        Module.onRuntimeInitialized = function() 
+        {
+            console.log('onRuntimeInitialized:'); 
+        }
         // 获取所有复选框  
         const checkboxes = document.querySelectorAll('input[type="checkbox"][name="options"]');  
 
@@ -83,44 +87,70 @@
             }
             console.log('file addEventListener:'+filename+' type:'+filetype+' byteLength:'+arrayBuffer.byteLength);    
             // 选择所有的复选框  
-            Module.onRuntimeInitialized = function() 
+            //Module.onRuntimeInitialized = function() 
             {
-                console.log('file onRuntimeInitialized:'+filename+' type:'+filetype+' byteLength:'+arrayBuffer.byteLength); 
-                Module._InputData(arrayBuffer.buffer,arrayBuffer.byteLength);
-                const buffer = new ArrayBuffer(arrayBuffer.byteLength); 
-                const uint8View = new Uint8Array(buffer); 
-                var ret; 
-                do {  
-
-                    ret = Module._GetData(uint8View.byteOffset,uint8View.byteLength);//arrayBuffer.buffer arrayBuffer.byteOffset
-                } while (0); 
-                const copiedArray = uint8View.slice(0, ret);
-                
-                
-                const selectedHobbies = [];  
-                // 遍历复选框，检测哪些被选中  
-                checkboxes.forEach(checkbox => {  
-                    if (checkbox.checked) 
-                    {  
-                        selectedHobbies.push(checkbox.value); // 添加到数组  
-                    }  
-                }); 
-                // 创建 Blob 对象  
-                const blob = new Blob([copiedArray]);  
-                // 创建下载链接  
-                const url = URL.createObjectURL(blob);  
-                const a = document.createElement('a');  
-                a.href = url;  
-                a.download = filename+'.'+selectedHobbies[0]; // 指定下载文件名  
-                document.body.appendChild(a);  
-                a.click(); // 自动点击下载链接  
-                document.body.removeChild(a); // 下载后移除临时链接  
-
-                // 释放 Blob URL  
-                URL.revokeObjectURL(url);  
+                convert();
             }
-
         }); 
+        function convert() 
+        {         
+            const selectedHobbies = [];  
+            // 遍历复选框，检测哪些被选中  
+            checkboxes.forEach(checkbox => {  
+                if (checkbox.checked) 
+                {  
+                    selectedHobbies.push(checkbox.value); // 添加到数组  
+                }  
+            }); 
+            const dstType = '.'+selectedHobbies[0];
+            /*const arr = new Float32Array([1.0, 2.0, 3.0]); // 示例数组  
+            const size = arr.length * arr.BYTES_PER_ELEMENT; // 计算大小  
+            const ptr = instance._malloc(size); // 在Wasm内存中申请空间  
+            instance.HEAPF32.set(arr, ptr / arr.BYTES_PER_ELEMENT); // 拷贝数据到内存  
+            instance._your_function(ptr, arr.length); // 调用C函数，传入数据指针和数组长度  
+            instance._free(ptr); // 调用完后释放内存  */
+            let arrDstType = intArrayFromString(dstType).concat(0);
+	        let bufDstType = Module._malloc(arrDstType.length);
+	        Module.HEAPU8.set(arrDstType, bufDstType);
+	        let arrSrctype = intArrayFromString(filetype).concat(0);
+	        let bufSrctype = Module._malloc(arrSrctype.length);
+	        Module.HEAPU8.set(arrSrctype, bufSrctype);
+            const uint8View = new Uint8Array(arrayBuffer);
+	        let bufSrcFrame = Module._malloc(uint8View.byteLength);
+	        Module.HEAPU8.set(uint8View,bufSrcFrame);//bufSrcFrame,arrayBuffer
+            //const lengthPtr = Module._malloc(arrayBuffer.byteLength);
+            //const uint8View = new Uint8Array(Module.HEAPU8.buffer, bufSrcFrame, arrayBuffer.byteLength).set(arrayBuffer);
+            Module._InputData(bufSrcFrame,uint8View.byteLength,bufSrctype,bufDstType);
+            //const buffer = new ArrayBuffer(arrayBuffer.byteLength); 
+            //const uint8View = new Uint8Array(buffer); 
+            let bufDstFrame = Module._malloc(uint8View.byteLength);
+            var ret=0;
+            var len=0; 
+            do {  
+                len+=ret;   
+                ret = Module._GetData(bufDstFrame+len,uint8View.byteLength-len);//arrayBuffer.buffer arrayBuffer.byteOffset
+            } while (ret>0); 
+            let copiedArray = new Uint8Array(len);
+            copiedArray.set(new Uint8Array(Module.HEAPU8.buffer, bufDstFrame, len)); // 将C中的数组拷贝到JS数组中
+            Module._free(bufDstType);
+            Module._free(bufSrctype);
+            Module._free(bufSrcFrame);
+            Module._free(bufDstFrame);
+            // 创建 Blob 对象  
+            const blob = new Blob([copiedArray]);  
+            // 创建下载链接  
+            const url = URL.createObjectURL(blob);  
+            const a = document.createElement('a');  
+            a.href = url;  
+            a.download = filename+'.'+dstType; // 指定下载文件名  
+            document.body.appendChild(a);  
+            a.click(); // 自动点击下载链接  
+            document.body.removeChild(a); // 下载后移除临时链接  
+
+            // 释放 Blob URL  
+            URL.revokeObjectURL(url);  
+            
+        } 
         function formatDate(date) 
         {  
             const currentDate = new Date();  

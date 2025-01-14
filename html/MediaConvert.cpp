@@ -205,10 +205,12 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
     while(1)
     {
         tFileFrameInfo.iFrameLen = 0;
+        tFileFrameInfo.pbFrameBuf = m_pbInputBuf->pbBuf+tFileFrameInfo.iFrameProcessedLen;
+        tFileFrameInfo.iFrameBufLen = m_pbInputBuf->iBufLen-tFileFrameInfo.iFrameProcessedLen;
         m_oMediaHandle.GetFrame(&tFileFrameInfo);
         if(tFileFrameInfo.iFrameLen <= 0)
         {
-            printf("tFileFrameInfo.iFrameLen <= 0 %d\r\n",i_iSrcDataLen);
+            printf("tFileFrameInfo.iFrameLen <= 0 [%x,%d,%d]\r\n",i_pbSrcData[0],i_iSrcDataLen,tFileFrameInfo.iFrameProcessedLen);
             break;
         } 
         if(NULL == pbOutBuf)
@@ -218,13 +220,15 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
         iWriteLen = m_oMediaHandle.FrameToContainer(&tFileFrameInfo,i_eDstStreamType,pbOutBuf->pbBuf,pbOutBuf->iBufMaxLen,&iHeaderLen);
         if(iWriteLen < 0)
         {
-            printf("FrameToContainer err iWriteLen %d\r\n",iWriteLen);
+            printf("FrameToContainer err iWriteLen %d iFrameProcessedLen[%d]\r\n",iWriteLen,tFileFrameInfo.iFrameProcessedLen);
             break;
         }
         if(iWriteLen == 0)
         {
             continue;
         }
+        printf("FrameToContainer iWriteLen %d iFrameProcessedLen[%d]\r\n",iWriteLen,tFileFrameInfo.iFrameProcessedLen);
+        pbOutBuf->iBufLen=iWriteLen;
         m_pDataBufList.push_back(pbOutBuf);
         pbOutBuf = NULL;
     }
@@ -339,7 +343,7 @@ EM_EXPORT_API(int) InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const
         printf("i_strDstName %s err\r\n",i_strDstName);
         return -1;
     }
-
+    printf("Convert %s to %s\r\n",i_strSrcName,i_strDstName);
     return MediaConvert::Instance()->Convert(i_pbSrcData,i_iSrcDataLen,eSrcEncType,eSrcStreamType,eDstStreamType);
 }
 
