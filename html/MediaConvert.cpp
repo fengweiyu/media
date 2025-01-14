@@ -42,7 +42,7 @@ using std::list;
 #endif
 
 
-
+#define MEDIA_FORMAT_MAX_LEN	(10*1024) 
 #define MEDIA_OUTPUT_BUF_MAX_LEN	(2*1024*1024) 
 #define MEDIA_INPUT_BUF_MAX_LEN	(6*1024*1024) 
 
@@ -215,7 +215,7 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
         } 
         if(NULL == pbOutBuf)
         {
-            pbOutBuf = new DataBuf(MEDIA_OUTPUT_BUF_MAX_LEN);
+            pbOutBuf = new DataBuf(tFileFrameInfo.iFrameLen+MEDIA_FORMAT_MAX_LEN);
         }
         iWriteLen = m_oMediaHandle.FrameToContainer(&tFileFrameInfo,i_eDstStreamType,pbOutBuf->pbBuf,pbOutBuf->iBufMaxLen,&iHeaderLen);
         if(iWriteLen < 0)
@@ -240,6 +240,7 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
     
     return iWriteLen;
 }
+
 /*****************************************************************************
 -Fuction		: GetData
 -Description	: GetData
@@ -294,6 +295,37 @@ EM_EXPORT_API(int) InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const
     E_StreamType eDstStreamType=STREAM_TYPE_UNKNOW;
     E_MediaEncodeType eSrcEncType=MEDIA_ENCODE_TYPE_UNKNOW;
 
+    if(NULL != strstr(i_strDstName,".ts"))
+    {
+        eDstStreamType=STREAM_TYPE_TS_STREAM;
+    }
+    else if(NULL != strstr(i_strDstName,".mp4"))
+    {
+        eDstStreamType=STREAM_TYPE_FMP4_STREAM;
+    }
+    else if(NULL != strstr(i_strDstName,".flv"))
+    {
+        eDstStreamType=STREAM_TYPE_ENHANCED_FLV_STREAM;
+    }
+    else if(NULL != strstr(i_strDstName,".VideoRaw"))
+    {
+        eDstStreamType=STREAM_TYPE_VIDEO_STREAM;
+    }
+    else if(NULL != strstr(i_strDstName,".AudioRaw"))
+    {
+        eDstStreamType=STREAM_TYPE_AUDIO_STREAM;
+    }
+    else
+    {
+        printf("i_strDstName %s err\r\n",i_strDstName);
+        return -1;
+    }
+    if(NULL != strstr(i_strSrcName,".pri"))
+    {
+        printf("Convert %s to %s unsupport\r\n",i_strSrcName,i_strDstName);
+        return -1;//MediaConvert::Instance()->ConvertFromPri(i_pbSrcData,i_iSrcDataLen,eDstStreamType);
+    }
+
     if(NULL != strstr(i_strSrcName,".flv"))
     {
         eSrcStreamType=STREAM_TYPE_FLV_STREAM;
@@ -316,31 +348,6 @@ EM_EXPORT_API(int) InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const
     else
     {
         printf("i_strSrcName %s err\r\n",i_strSrcName);
-        return -1;
-    }
-    if(NULL != strstr(i_strDstName,".ts"))
-    {
-        eDstStreamType=STREAM_TYPE_TS_STREAM;
-    }
-    else if(NULL != strstr(i_strDstName,".mp4"))
-    {
-        eDstStreamType=STREAM_TYPE_FMP4_STREAM;
-    }
-    else if(NULL != strstr(i_strDstName,".flv"))
-    {
-        eDstStreamType=STREAM_TYPE_ENHANCED_FLV_STREAM;
-    }
-    else if(NULL != strstr(i_strDstName,".h264")||NULL != strstr(i_strDstName,".h265"))
-    {
-        eDstStreamType=STREAM_TYPE_VIDEO_STREAM;
-    }
-    else if(NULL != strstr(i_strDstName,".aac"))
-    {
-        eDstStreamType=STREAM_TYPE_AUDIO_STREAM;
-    }
-    else
-    {
-        printf("i_strDstName %s err\r\n",i_strDstName);
         return -1;
     }
     printf("Convert %s to %s\r\n",i_strSrcName,i_strDstName);

@@ -117,18 +117,19 @@
 	        Module.HEAPU8.set(arrSrctype, bufSrctype);
             const uint8View = new Uint8Array(arrayBuffer);
 	        let bufSrcFrame = Module._malloc(uint8View.byteLength);
-	        Module.HEAPU8.set(uint8View,bufSrcFrame);//bufSrcFrame,arrayBuffer
+	        Module.HEAPU8.set(uint8View,bufSrcFrame);//bufSrcFrame,arrayBuffer,要Uint8Array才可以设置进去拷贝，arrayBuffer不能拷贝
             //const lengthPtr = Module._malloc(arrayBuffer.byteLength);
             //const uint8View = new Uint8Array(Module.HEAPU8.buffer, bufSrcFrame, arrayBuffer.byteLength).set(arrayBuffer);
             Module._InputData(bufSrcFrame,uint8View.byteLength,bufSrctype,bufDstType);
             //const buffer = new ArrayBuffer(arrayBuffer.byteLength); 
             //const uint8View = new Uint8Array(buffer); 
-            let bufDstFrame = Module._malloc(uint8View.byteLength);
+            var bufDstMaxLen=uint8View.byteLength+(10*1024*1024);
+            let bufDstFrame = Module._malloc(bufDstMaxLen);
             var ret=0;
             var len=0; 
             do {  
                 len+=ret;   
-                ret = Module._GetData(bufDstFrame+len,uint8View.byteLength-len);//arrayBuffer.buffer arrayBuffer.byteOffset
+                ret = Module._GetData(bufDstFrame+len,bufDstMaxLen-len);//arrayBuffer.buffer arrayBuffer.byteOffset
             } while (ret>0); 
             let copiedArray = new Uint8Array(len);
             copiedArray.set(new Uint8Array(Module.HEAPU8.buffer, bufDstFrame, len)); // 将C中的数组拷贝到JS数组中
@@ -142,7 +143,7 @@
             const url = URL.createObjectURL(blob);  
             const a = document.createElement('a');  
             a.href = url;  
-            a.download = filename+'.'+dstType; // 指定下载文件名  
+            a.download = filename+dstType; // 指定下载文件名  
             document.body.appendChild(a);  
             a.click(); // 自动点击下载链接  
             document.body.removeChild(a); // 下载后移除临时链接  
