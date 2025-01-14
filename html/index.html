@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh">
   <head>
+    <meta charset="UTF-8"> 
     <title>MediaConvert.js demo</title>
   </head>
 
@@ -9,11 +10,14 @@
     <script type="text/javascript" src="./build/MediaConvert.js"></script>
     <center>
         <h1><a href="">MediaConvert.js demo</a></h1>
-        <input type="file" id="fileInput" accept=".flv,.h264,.h265"/>  
+        <input type="file" id="fileInput" accept=".flv,.h264,.h265,.pri"/>  
         <br><br>
         <button id="saveButton" disabled>格式转换</button>
 
         <h2>请选择一个输出格式:</h2>  
+        <label>  
+            <input type="checkbox" name="options" value="pri" > pri  
+        </label> 
         <label>  
             <input type="checkbox" name="options" value="flv" > flv  
         </label>  
@@ -21,10 +25,11 @@
             <input type="checkbox" name="options" value="mp4" checked> mp4  
         </label>  
         <label>  
-            <input type="checkbox" name="options" value="raw"> raw  
+            <input type="checkbox" name="options" value="VideoRaw"> VideoRaw  
         </label>
-        
-        
+        <label>  
+            <input type="checkbox" name="options" value="AudioRaw"> AudioRaw  
+        </label> 
     </center>
 
     <script>
