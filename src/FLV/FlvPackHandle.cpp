@@ -117,6 +117,7 @@ int FlvPackHandle::GetMuxData(T_MediaFrameInfo * i_ptFrameInfo,unsigned char * o
     int iDataLen = 0;
     unsigned char bVideo = 0;
     unsigned char bAudio = 0;
+    unsigned char bSaved = 0;
     T_MediaFrameInfo * ptFrameInfo=NULL;
     T_MediaFrameInfo tMediaFrameInfo;
 
@@ -144,6 +145,7 @@ int FlvPackHandle::GetMuxData(T_MediaFrameInfo * i_ptFrameInfo,unsigned char * o
             MH_LOGE("SaveFrame err \r\n");
             return iRet;
         }
+        bSaved = 1;
         if(!m_MediaFrameList.empty())
         {
             for (list<T_MediaFrameInfo>::iterator iter = m_MediaFrameList.begin(); iter != m_MediaFrameList.end(); ++iter)
@@ -172,6 +174,10 @@ int FlvPackHandle::GetMuxData(T_MediaFrameInfo * i_ptFrameInfo,unsigned char * o
     {//不为空，当前帧数据已经存进去了
         memset(&tMediaFrameInfo,0,sizeof(T_MediaFrameInfo));
         ptFrameInfo=GetMediaFrame(&tMediaFrameInfo) == 0?&tMediaFrameInfo : NULL;
+        if(bSaved==0)
+        {
+            iRet = SaveFrame(i_ptFrameInfo);
+        }
     }
     else
     {
@@ -182,7 +188,7 @@ int FlvPackHandle::GetMuxData(T_MediaFrameInfo * i_ptFrameInfo,unsigned char * o
         //数据打包
         if(0==m_iHeaderCreatedFlag)
         {
-            iRet=this->CreateHeader(o_pbBuf+iDataLen,i_dwMaxBufLen-iDataLen,bVideo,bAudio);
+            iRet=this->CreateHeader(o_pbBuf+iDataLen,(int)(i_dwMaxBufLen-(unsigned int)iDataLen),bVideo,bAudio);
             if(iRet <= 0)
             {
                 MH_LOGE("CreateHeader err %d \r\n",iRet);
@@ -191,7 +197,7 @@ int FlvPackHandle::GetMuxData(T_MediaFrameInfo * i_ptFrameInfo,unsigned char * o
             iDataLen+=iRet;
             m_iHeaderCreatedFlag=1;
         }
-        iRet=this->CreateTag(ptFrameInfo,o_pbBuf+iDataLen,i_dwMaxBufLen-iDataLen);
+        iRet=this->CreateTag(ptFrameInfo,o_pbBuf+iDataLen,(int)(i_dwMaxBufLen-(unsigned int)iDataLen));
         if(iRet <= 0)
         {
             MH_LOGE("CreateTag err %d \r\n",iRet);
@@ -206,11 +212,11 @@ int FlvPackHandle::GetMuxData(T_MediaFrameInfo * i_ptFrameInfo,unsigned char * o
             ptFrameInfo=GetMediaFrame(&tMediaFrameInfo) == 0?&tMediaFrameInfo : NULL;
         }
     };
-    if(!m_MediaFrameList.empty())
+    /*if(!m_MediaFrameList.empty())
     {//确保数据清空，防止不为空时，前面不会缓存当前帧导致的丢帧
         m_MediaFrameList.clear();
         m_iCurMediaDataLen = 0;
-    }
+    }*/
     
     if(iDataLen == 0)
     {
@@ -286,7 +292,7 @@ int FlvPackHandle::GetMediaFrame(T_MediaFrameInfo *o_ptFrameInfo)
     
     if(!m_MediaFrameList.empty())
     {
-        T_MediaFrameInfo & it = m_MediaFrameList.front();
+        T_MediaFrameInfo it = m_MediaFrameList.front();
         memcpy(o_ptFrameInfo,&it,sizeof(T_MediaFrameInfo));
         m_MediaFrameList.pop_front();
         m_iCurMediaDataLen -= o_ptFrameInfo->iFrameLen;
@@ -305,16 +311,16 @@ int FlvPackHandle::GetMediaFrame(T_MediaFrameInfo *o_ptFrameInfo)
 * -----------------------------------------------
 * 2023/11/21      V1.0.0         Yu Weifeng       Created
 ******************************************************************************/
-int FlvPackHandle::CreateHeader(unsigned char* o_pbBuf,unsigned int i_dwMaxLen,unsigned char i_bVideo,unsigned char i_bAudio)
+int FlvPackHandle::CreateHeader(unsigned char* o_pbBuf,int i_iMaxLen,unsigned char i_bVideo,unsigned char i_bAudio)
 {
     int iRet = -1;
     int iLen = 0;
     T_FlvHeader tFlvHeader;
     unsigned int dwPreviousTagSize0=0;
     
-	if (i_dwMaxLen < FLV_HEADER_LEN+sizeof(dwPreviousTagSize0) ||NULL == o_pbBuf)
+	if (i_iMaxLen< FLV_HEADER_LEN+sizeof(dwPreviousTagSize0) ||NULL == o_pbBuf)
 	{
-        MH_LOGE("CreateHeader NULL %d \r\n", i_dwMaxLen);
+        MH_LOGE("CreateHeader NULL %d \r\n", i_iMaxLen);
 		return -1;
 	}
 	memset(&tFlvHeader,0,sizeof(T_FlvHeader));
@@ -323,7 +329,7 @@ int FlvPackHandle::CreateHeader(unsigned char* o_pbBuf,unsigned int i_dwMaxLen,u
 	tFlvHeader.bAudio = i_bAudio;
 	tFlvHeader.bVideo = i_bVideo;
 	tFlvHeader.dwOffset= FLV_HEADER_LEN;
-	iLen=CreateFlvHeader(&tFlvHeader,o_pbBuf,i_dwMaxLen);
+	iLen=CreateFlvHeader(&tFlvHeader,o_pbBuf,i_iMaxLen);
 	memcpy(o_pbBuf+iLen,&dwPreviousTagSize0,sizeof(dwPreviousTagSize0));
 	iLen+=sizeof(dwPreviousTagSize0);
 	
@@ -340,7 +346,7 @@ int FlvPackHandle::CreateHeader(unsigned char* o_pbBuf,unsigned int i_dwMaxLen,u
 * -----------------------------------------------
 * 2023/11/21      V1.0.0         Yu Weifeng       Created
 ******************************************************************************/
-int FlvPackHandle::CreateTag(T_MediaFrameInfo * i_ptFrameInfo,unsigned char* o_pbBuf,unsigned int i_dwMaxLen)
+int FlvPackHandle::CreateTag(T_MediaFrameInfo * i_ptFrameInfo,unsigned char* o_pbBuf,int i_iMaxLen)
 {
     int iRet = -1;
     int iLen = 0;
@@ -349,9 +355,9 @@ int FlvPackHandle::CreateTag(T_MediaFrameInfo * i_ptFrameInfo,unsigned char* o_p
     unsigned int dwPreviousTagSize=0;
 
     
-	if (i_dwMaxLen < FLV_TAG_HEADER_LEN+FLV_PRE_TAG_LEN ||NULL == i_ptFrameInfo||NULL == o_pbBuf)
+	if (i_iMaxLen < FLV_TAG_HEADER_LEN+FLV_PRE_TAG_LEN ||NULL == i_ptFrameInfo||NULL == o_pbBuf)
 	{
-        MH_LOGE("CreateTag NULL %d \r\n", i_dwMaxLen);
+        MH_LOGE("CreateTag NULL %d \r\n", i_iMaxLen);
 		return -1;
 	}
     switch(i_ptFrameInfo->eFrameType)
@@ -371,10 +377,10 @@ int FlvPackHandle::CreateTag(T_MediaFrameInfo * i_ptFrameInfo,unsigned char* o_p
             tFlvTagHeader.dwSize= iLen;
             tFlvTagHeader.dwTimestamp= i_ptFrameInfo->dwTimeStamp;
             tFlvTagHeader.dwStreamId= 0;// StreamID Always 0
-            iLen = this->CreateFlvTagHeader(&tFlvTagHeader,o_pbBuf,i_dwMaxLen);
-            if(iLen <= 0)
+            iLen = this->CreateFlvTagHeader(&tFlvTagHeader,o_pbBuf, i_iMaxLen);
+            if(iLen <= 0 || i_iMaxLen-iLen<(int)tFlvTagHeader.dwSize)
             {
-                MH_LOGE("CreateFlvTagHeader err %d \r\n",iLen);
+                MH_LOGE("CreateFlvTagHeader I_FRAME err %d,%d,%d,%d \r\n",iRet,i_iMaxLen,iLen,tFlvTagHeader.dwSize);
                 return -1;
             }
             memcpy(o_pbBuf+iLen,m_pbFrameBuf,tFlvTagHeader.dwSize);
@@ -418,10 +424,10 @@ int FlvPackHandle::CreateTag(T_MediaFrameInfo * i_ptFrameInfo,unsigned char* o_p
                 tFlvTagHeader.dwSize= iLen;
                 tFlvTagHeader.dwTimestamp= i_ptFrameInfo->dwTimeStamp;
                 tFlvTagHeader.dwStreamId= 0;// StreamID Always 0
-                iLen = this->CreateFlvTagHeader(&tFlvTagHeader,o_pbBuf,i_dwMaxLen);
-                if(iLen <= 0)
+                iLen = this->CreateFlvTagHeader(&tFlvTagHeader,o_pbBuf, i_iMaxLen);
+                if(iLen <= 0 || i_iMaxLen-iLen<(int)tFlvTagHeader.dwSize)
                 {
-                    MH_LOGE("CreateFlvTagHeader err %d \r\n",iLen);
+                    MH_LOGE("CreateFlvTagHeader AUDIO err %d,%d,%d,%d \r\n",iRet,i_iMaxLen,iLen,tFlvTagHeader.dwSize);
                     return -1;
                 }
                 memcpy(o_pbBuf+iLen,m_pbFrameBuf,tFlvTagHeader.dwSize);
@@ -451,10 +457,10 @@ int FlvPackHandle::CreateTag(T_MediaFrameInfo * i_ptFrameInfo,unsigned char* o_p
     tFlvTagHeader.dwSize= iRet;
     tFlvTagHeader.dwTimestamp= i_ptFrameInfo->dwTimeStamp;
     tFlvTagHeader.dwStreamId= 0;// StreamID Always 0
-    iRet = this->CreateFlvTagHeader(&tFlvTagHeader,o_pbBuf+iLen,i_dwMaxLen-iLen);
-    if(iRet <= 0)
+    iRet = this->CreateFlvTagHeader(&tFlvTagHeader,o_pbBuf+iLen, i_iMaxLen-iLen);
+    if(iRet <= 0 || i_iMaxLen-iLen-iRet<(int)tFlvTagHeader.dwSize)
     {
-        MH_LOGE("CreateFlvTagHeader a err %d \r\n",iLen);
+        MH_LOGE("CreateFlvTagHeader a err %d,%d,%d,%d \r\n",iRet,i_iMaxLen,iLen,tFlvTagHeader.dwSize);
         return -1;
     }
     iLen+=iRet;
@@ -476,14 +482,14 @@ int FlvPackHandle::CreateTag(T_MediaFrameInfo * i_ptFrameInfo,unsigned char* o_p
 * -----------------------------------------------
 * 2023/11/21      V1.0.0         Yu Weifeng       Created
 ******************************************************************************/
-int FlvPackHandle::CreateFlvHeader(T_FlvHeader * i_ptFlvHeader,unsigned char* o_pbBuf,unsigned int i_dwMaxLen)
+int FlvPackHandle::CreateFlvHeader(T_FlvHeader * i_ptFlvHeader,unsigned char* o_pbBuf,int i_iMaxLen)
 {
     int iRet = -1;
     int iLen = 0;
     
-	if (i_dwMaxLen < FLV_HEADER_LEN || NULL == i_ptFlvHeader ||NULL == o_pbBuf)
+	if (i_iMaxLen < FLV_HEADER_LEN || NULL == i_ptFlvHeader ||NULL == o_pbBuf)
 	{
-        MH_LOGE("CreateFlvHeader NULL %d \r\n", i_dwMaxLen);
+        MH_LOGE("CreateFlvHeader NULL %d \r\n", i_iMaxLen);
 		return iLen;
 	}
 	
@@ -511,14 +517,14 @@ int FlvPackHandle::CreateFlvHeader(T_FlvHeader * i_ptFlvHeader,unsigned char* o_
 * -----------------------------------------------
 * 2023/11/21      V1.0.0         Yu Weifeng       Created
 ******************************************************************************/
-int FlvPackHandle::CreateFlvTagHeader(T_FlvTagHeader * i_ptFlvTagHeader,unsigned char* o_pbBuf,unsigned int i_dwMaxLen)
+int FlvPackHandle::CreateFlvTagHeader(T_FlvTagHeader * i_ptFlvTagHeader,unsigned char* o_pbBuf,int i_iMaxLen)
 {
     int iRet = -1;
     int iLen = 0;
     
-	if (i_dwMaxLen < FLV_TAG_HEADER_LEN || NULL == i_ptFlvTagHeader ||NULL == o_pbBuf)
+	if (i_iMaxLen < FLV_TAG_HEADER_LEN || NULL == i_ptFlvTagHeader ||NULL == o_pbBuf)
 	{
-        MH_LOGE("CreateFlvTagHeader NULL %d \r\n", i_dwMaxLen);
+        MH_LOGE("CreateFlvTagHeader NULL %d \r\n", i_iMaxLen);
 		return iLen;
 	}
 

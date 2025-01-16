@@ -43,11 +43,11 @@ private:
     int SaveFrame(T_MediaFrameInfo *i_ptFrameInfo);
     int GetMediaFrame(T_MediaFrameInfo *o_ptFrameInfo);
         
-    int CreateHeader(unsigned char* o_pbBuf,unsigned int i_dwMaxLen,unsigned char i_bVideo,unsigned char i_bAudio);
-    int CreateTag(T_MediaFrameInfo * i_ptFrameInfo,unsigned char* o_pbBuf,unsigned int i_dwMaxLen);
+    int CreateHeader(unsigned char* o_pbBuf,int i_iMaxLen,unsigned char i_bVideo,unsigned char i_bAudio);
+    int CreateTag(T_MediaFrameInfo * i_ptFrameInfo,unsigned char* o_pbBuf,int i_iMaxLen);
 
-    int CreateFlvHeader(T_FlvHeader * i_ptFlvHeader,unsigned char* o_pbBuf,unsigned int i_dwMaxLen);
-    int CreateFlvTagHeader(T_FlvTagHeader * i_ptFlvTagHeader,unsigned char* o_pbBuf,unsigned int i_dwMaxLen);
+    int CreateFlvHeader(T_FlvHeader * i_ptFlvHeader,unsigned char* o_pbBuf,int i_iMaxLen);
+    int CreateFlvTagHeader(T_FlvTagHeader * i_ptFlvTagHeader,unsigned char* o_pbBuf,int i_iMaxLen);
     int GenerateVideoData(T_MediaFrameInfo * i_ptFrameInfo,int i_iIsAvcSeqHeader,unsigned char *o_pbVideoData,int i_iMaxVideoData);
     int GenerateAudioData(T_MediaFrameInfo * i_ptAudioInfo,int i_iIsAACSeqHeader,unsigned char *o_pbAudioData,int i_iMaxAudioData);
 
