@@ -59,12 +59,15 @@ install(FILES ${PUBLIC_HEADERS}
 
 
 # 收集源文件  
-#file(GLOB demo_list demo/main.cpp)
-#add_executable(MediaConvert ${demo_list})
+file(GLOB demo_list demo/MediaConvert.cpp demo/MediaConvertMain.cpp)
+add_executable(MediaConvert ${demo_list})
  #set(CMAKE_EXECUTABLE_SUFFIX ".html") # 编译生成.html
-#target_include_directories(MediaConvert PUBLIC ${PROJECT_SOURCE_DIR}/src/include)
-#target_link_libraries(MediaConvert PUBLIC media) 
-#install(TARGETS MediaConvert DESTINATION .) #安装目录 目录MediaConvert换成目录. 也可以，这样就在当前目录生成不会生成在MediaConvert目录下
+target_include_directories(MediaConvert PUBLIC
+    ${PROJECT_SOURCE_DIR}/src/include
+    ${PROJECT_SOURCE_DIR}/demo
+)
+target_link_libraries(MediaConvert PUBLIC media) 
+install(TARGETS MediaConvert DESTINATION .) #安装目录 目录MediaConvert换成目录. 也可以，这样就在当前目录生成不会生成在MediaConvert目录下
 
 #SET_TARGET_PROPERTIES(base64_static PROPERTIES OUTPUT_NAME base64)
 #SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build/lib)
