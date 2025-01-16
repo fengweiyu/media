@@ -6,8 +6,10 @@ set currentPath=%CD%
 cd ..\..\..\..\emsdk
 call emsdk_env.bat
 cd %currentPath%
+::D:\code\ThirdSources\emsdk\emsdk_env.bat
 pause
-emcmake cmake -GNinja ..
+cd build
+emcmake cmake -GNinja ..\..\..\
 pause
 ninja
 pause
