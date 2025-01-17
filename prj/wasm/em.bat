@@ -9,6 +9,7 @@ cd %currentPath%
 ::D:\code\ThirdSources\emsdk\emsdk_env.bat
 pause
 cd build
+::emcmake cmake -GNinja ..\..\..\ -DPRI=SUPPORT
 emcmake cmake -GNinja ..\..\..\
 pause
 ninja

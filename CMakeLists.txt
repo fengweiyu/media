@@ -78,9 +78,9 @@ set(MC_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/src/include ${PROJECT_SOURCE_DIR}/demo
 set(MC_LINK_LIBS media)
 if(DEFINED PRI)  
     add_definitions(-DSUPPORT_PRI)
-    set(MC_INCLUDE_DIRS ${MC_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/XBasic/include/XBasic
-    ${PROJECT_SOURCE_DIR}/XProtocol/include/XProtocol ${PROJECT_SOURCE_DIR}/XProtocol/include/XProtocol/StreamParser)
-    set(MC_LINK_LIBS ${MC_LINK_LIBS} ${PROJECT_SOURCE_DIR}/libXBasic.a ${PROJECT_SOURCE_DIR}/libXProtocol.a ) 
+    set(MC_INCLUDE_DIRS ${MC_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/third/XBasic/include ${PROJECT_SOURCE_DIR}/third/XBasic/include/XBasic
+    ${PROJECT_SOURCE_DIR}/third/XProtocol/include ${PROJECT_SOURCE_DIR}/third/XProtocol/include/XProtocol/StreamParser)
+    set(MC_LINK_LIBS ${MC_LINK_LIBS} ${PROJECT_SOURCE_DIR}/third/XBasic/lib/wasm/libXBasic.a ${PROJECT_SOURCE_DIR}/third/XProtocol/lib/wasm/libXProtocol.a ) 
 else()  
 endif()  
 target_include_directories(MediaConvert PUBLIC
