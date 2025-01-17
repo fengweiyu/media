@@ -416,8 +416,9 @@ int AACHandle::GetFrame(T_MediaFrameInfo *m_ptFrame)
             iSampleRateIndex = (int)((pcFrameStartPos[2]&0x3C)>>2);
             m_ptFrame->pbFrameStartPos = pcFrameStartPos;
             m_ptFrame->iFrameLen = (int)((pcFrameStartPos[3]&0x03)<<11|pcFrameStartPos[4]<<3|(pcFrameStartPos[5]&0xE0)>>5);
-            if(STREAM_TYPE_UNKNOW == m_ptFrame->eStreamType)//文件的时候才需要赋值，数据流的时候外部会赋值以外部为准
-            {
+            //if(STREAM_TYPE_UNKNOW == m_ptFrame->eStreamType)//文件的时候才需要赋值，数据流的时候外部会赋值以外部为准
+            if(MEDIA_FRAME_TYPE_UNKNOW == m_ptFrame->eFrameType)
+            {//文件的时候eFrameType外部不赋值故需要赋值，数据流的时候外部会赋值以外部为准
                 m_ptFrame->eFrameType = MEDIA_FRAME_TYPE_AUDIO_FRAME;
                 if(iSampleRateIndex>=0&&iSampleRateIndex<sizeof(g_aiAACSamplingFreqIndexValue)/sizeof(int));
                     m_ptFrame->dwSampleRate = g_aiAACSamplingFreqIndexValue[iSampleRateIndex];
