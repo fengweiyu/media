@@ -172,7 +172,7 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
         tFileFrameInfo.iFrameLen = 0;
         tFileFrameInfo.pbFrameBuf = m_pbInputBuf->pbBuf+tFileFrameInfo.iFrameProcessedLen;
         tFileFrameInfo.iFrameBufLen = m_pbInputBuf->iBufLen-tFileFrameInfo.iFrameProcessedLen;
-        if(MEDIA_ENCODE_TYPE_H264==i_eSrcStreamType||MEDIA_ENCODE_TYPE_H265==i_eSrcStreamType)
+        if(STREAM_TYPE_VIDEO_STREAM==i_eSrcStreamType)
         {//非文件流使用m_oMediaHandle则要保证数据只有一帧
             tFileFrameInfo.pbFrameStartPos = NULL;//因此干脆直接使用ParseNaluFromFrame
             tFileFrameInfo.eStreamType = STREAM_TYPE_UNKNOW;//ParseNaluFromFrame 赋值需要先设置为MEDIA_ENCODE_TYPE_UNKNOW
@@ -229,12 +229,14 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
             }//如果每次都传入一个足够大的缓存，则不需要这么麻烦
             continue;
         }
-        printf("FrameToContainer iWriteLen %d iFrameProcessedLen[%d]\r\n",iWriteLen,tFileFrameInfo.iFrameProcessedLen);
-        iPutFrameLen=0;
+        printf("FrameToContainer iPutFrameLen %d iWriteLen %d iFrameProcessedLen[%d]\r\n",iPutFrameLen,iWriteLen,tFileFrameInfo.iFrameProcessedLen);
         pbOutBuf->iBufLen=iWriteLen;
         m_pDataBufList.push_back(pbOutBuf);
         pbOutBuf = NULL;
-    }
+        //int iRemain = MEDIA_FORMAT_MAX_LEN - (iWriteLen-iPutFrameLen);//没用到的封装缓存长度
+        //iPutFrameLen=pbOutBuf->iBufMaxLen-iWriteLen-iRemain;//总数据-被打包的数据长度和封装长度=未打包数据长度+未用封装缓存长度再减iRemain=未打包数据长度
+        iPutFrameLen=tFileFrameInfo.iFrameLen;//iPutFrameLen要等于封装对象中缓存的未打包的数据长度，这样内存才够。
+    }//gop类打包(mp4)，最新的i帧不会被打包是下次打包，最新的帧长度= 封装对象中缓存的未打包的数据长度
     m_pbInputBuf->Delete(tFileFrameInfo.iFrameProcessedLen);
     if(NULL != pbOutBuf)
     {
