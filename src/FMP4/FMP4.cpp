@@ -3106,7 +3106,7 @@ public:
                 FMP4BaseBox::m_dwBoxSize += m_aptTrackInfo[i].aptSampleInfo[j].dwDataSize;
             }
         }
-        
+        dwMaxLen = FMP4BaseBox::m_dwBoxSize;//
         if(NULL == o_pbBuf || i_dwMaxBufLen < dwMaxLen)
         {
             FMP4_LOGE("FMP4MdatBox ToBits err %d,%d",i_dwMaxBufLen,dwMaxLen);
