@@ -514,11 +514,33 @@ int MediaHandle::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eSt
             break;
         }
         case STREAM_TYPE_VIDEO_STREAM :
+        {
+            if(i_ptFrame->iFrameLen > i_dwMaxBufLen)
+            {
+                MH_LOGE("i_ptFrame->iFrameLen > i_dwMaxBufLen err\r\n");
+                break;
+            }
+            if(i_ptFrame->eFrameType != MEDIA_FRAME_TYPE_VIDEO_I_FRAME && 
+            i_ptFrame->eFrameType != MEDIA_FRAME_TYPE_VIDEO_P_FRAME && 
+            i_ptFrame->eFrameType != MEDIA_FRAME_TYPE_VIDEO_B_FRAME)
+            {
+                iRet = 0;
+                break;
+            }
+            memcpy(o_pbBuf,i_ptFrame->pbFrameStartPos,i_ptFrame->iFrameLen);
+            iRet = i_ptFrame->iFrameLen;
+            break;
+        }
         case STREAM_TYPE_AUDIO_STREAM :
         {
             if(i_ptFrame->iFrameLen > i_dwMaxBufLen)
             {
                 MH_LOGE("i_ptFrame->iFrameLen > i_dwMaxBufLen err\r\n");
+                break;
+            }
+            if(i_ptFrame->eFrameType != MEDIA_FRAME_TYPE_AUDIO_FRAME)
+            {
+                iRet = 0;
                 break;
             }
             memcpy(o_pbBuf,i_ptFrame->pbFrameStartPos,i_ptFrame->iFrameLen);
