@@ -86,6 +86,7 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
 	DataBuf * pbOutBuf =NULL;
 	int iRet = -1,iWriteLen=0;
 	int iHeaderLen=0;
+	int iPutFrameLen=0;
 
 #ifdef SUPPORT_PRI
     if(NULL == i_pbSrcData || i_iSrcDataLen <= 0)
@@ -109,24 +110,35 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
             printf("PriToMedia err%d\r\n",pFrame->nEncodeType);
             continue;
         }
+
+        iPutFrameLen+=tFileFrameInfo.iFrameLen;
         if(NULL == pbOutBuf)
         {
-            pbOutBuf = new DataBuf(pFrame->nLength+MEDIA_FORMAT_MAX_LEN);
+            pbOutBuf = new DataBuf(iPutFrameLen+MEDIA_FORMAT_MAX_LEN);
         }
         iWriteLen = m_oMediaHandle.FrameToContainer(&tFileFrameInfo,i_eDstStreamType,pbOutBuf->pbBuf,pbOutBuf->iBufMaxLen,&iHeaderLen);
         if(iWriteLen < 0)
         {
             printf("FrameToContainer err iWriteLen %d iFrameProcessedLen[%d]\r\n",iWriteLen,tFileFrameInfo.iFrameProcessedLen);
+            iPutFrameLen=0;
             break;
         }
         if(iWriteLen == 0)
         {
+            if(NULL != pbOutBuf)
+            {//没有获取到封装数据(输入数据不够)
+                delete pbOutBuf;//但是下次输出数据会更大，获取封装数据需要更大的缓存
+                pbOutBuf = NULL;//所以需要释放，重新分配
+            }//如果每次都传入一个足够大的缓存，则不需要这么麻烦
             continue;
         }
-        printf("FrameToContainer iWriteLen %d iFrameProcessedLen[%d]\r\n",iWriteLen,tFileFrameInfo.iFrameProcessedLen);
+        printf("FrameToContainer iPutFrameLen %d iWriteLen %d iFrameProcessedLen[%d]\r\n",iPutFrameLen,iWriteLen,tFileFrameInfo.iFrameProcessedLen);
         pbOutBuf->iBufLen=iWriteLen;
         m_pDataBufList.push_back(pbOutBuf);
         pbOutBuf = NULL;
+        //int iRemain = MEDIA_FORMAT_MAX_LEN - (iWriteLen-iPutFrameLen);//没用到的封装缓存长度
+        //iPutFrameLen=pbOutBuf->iBufMaxLen-iWriteLen-iRemain;//总数据-被打包的数据长度和封装长度=未打包数据长度+未用封装缓存长度再减iRemain=未打包数据长度
+        iPutFrameLen=tFileFrameInfo.iFrameLen;//iPutFrameLen要等于封装对象中缓存的未打包的数据长度，这样内存才够。
     }
     m_pbInputBuf->Delete(tFileFrameInfo.iFrameProcessedLen);
     if(NULL != pbOutBuf)
