@@ -179,9 +179,9 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
             ParseNaluFromFrame(&tFileFrameInfo);
             tFileFrameInfo.eStreamType = i_eSrcStreamType;
         }
-        else
-        {
-            m_oMediaHandle.GetFrame(&tFileFrameInfo);
+        else//GetFrame 内aac已经改为使用eFrameType判断外部是否已经完善了一帧的信息
+        {//aac的eFrameType为UNKNOW，则可以使用GetFrame解析,内部会进行赋值
+            m_oMediaHandle.GetFrame(&tFileFrameInfo);//后续视频裸流也改为使用eFrameType判断，而不是eStreamType，则也可以按照aac的方式使用GetFrame
         }
         if(tFileFrameInfo.iFrameLen <= 0)
         {
