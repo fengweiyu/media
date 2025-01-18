@@ -114,6 +114,7 @@ public:
     int ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_StreamType i_eDstStreamType);
     int Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaEncodeType i_eSrcEncType,E_StreamType i_eSrcStreamType,E_StreamType i_eDstStreamType);
     int GetData(unsigned char * o_pbData,int i_iMaxDataLen);
+    int GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoEncBufLen,unsigned char * o_pbAudioEncBuf,int i_iMaxAudioEncBufLen);
 private:
     int SetH264NaluData(unsigned char i_bNaluType,unsigned char i_bStartCodeLen,unsigned char *i_pbNaluData,int i_iNaluDataLen,T_MediaFrameInfo *m_ptFrame);
     int SetH265NaluData(unsigned char i_bNaluType,unsigned char i_bStartCodeLen,unsigned char *i_pbNaluData,int i_iNaluDataLen,T_MediaFrameInfo *m_ptFrame);
@@ -127,11 +128,14 @@ private:
 #endif
     MediaHandle m_oMediaHandle;
     DataBuf * m_pbInputBuf;
+    E_MediaEncodeType m_eDstVideoEncType;
+    E_MediaEncodeType m_eDstAudioEncType;
     list<DataBuf *> m_pDataBufList;
     static MediaConvert *m_pInstance;
 };
 EM_EXPORT_API(int) InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const char *i_strSrcName,const char *i_strDstName);
 EM_EXPORT_API(int) GetData(unsigned char * o_pbData,int i_iMaxDataLen);
+EM_EXPORT_API(int) GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoEncBufLen,unsigned char * o_pbAudioEncBuf,int i_iMaxAudioEncBufLen);
 
 
 #endif

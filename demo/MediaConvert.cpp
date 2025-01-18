@@ -33,6 +33,8 @@ MediaConvert * MediaConvert::m_pInstance = new MediaConvert();//一般使用饿汉模式
 MediaConvert:: MediaConvert()
 {
     m_pDataBufList.clear();
+    m_eDstVideoEncType=MEDIA_ENCODE_TYPE_UNKNOW;
+    m_eDstAudioEncType=MEDIA_ENCODE_TYPE_UNKNOW;
     m_pbInputBuf = new DataBuf(MEDIA_INPUT_BUF_MAX_LEN);
 }
 /*****************************************************************************
@@ -109,6 +111,16 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
         {
             printf("PriToMedia err%d\r\n",pFrame->nEncodeType);
             continue;
+        }
+        if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME ||
+        tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_P_FRAME ||
+        tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_B_FRAME)
+        {
+            m_eDstVideoEncType = tFileFrameInfo.eEncType;
+        }
+        if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_AUDIO_FRAME)
+        {
+            m_eDstAudioEncType = tFileFrameInfo.eEncType;
         }
 
         iPutFrameLen+=tFileFrameInfo.iFrameLen;
@@ -200,13 +212,24 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
             printf("tFileFrameInfo.iFrameLen <= 0 [%x,%d,%d]\r\n",i_pbSrcData[0],i_iSrcDataLen,tFileFrameInfo.iFrameProcessedLen);
             break;
         } 
+        if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME ||
+        tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_P_FRAME ||
+        tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_B_FRAME)
+        {
+            m_eDstVideoEncType = tFileFrameInfo.eEncType;
+        }
+        if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_AUDIO_FRAME)
+        {
+            m_eDstAudioEncType = tFileFrameInfo.eEncType;
+        }
+
 #ifdef SUPPORT_PRI
         if(STREAM_TYPE_UNKNOW == i_eDstStreamType)
         {
             FRAME_INFO* ptFrameInfo = MediaToPri(&tFileFrameInfo);
-            if(NULL == ptFrameInfo)
+            if(NULL == ptFrameInfo || ptFrameInfo->nLength <= 0)
             {
-                printf("MediaToPri err%d\r\n",tFileFrameInfo.iFrameLen);
+                printf("MediaToPri err %d %d\r\n",tFileFrameInfo.iFrameLen,ptFrameInfo->nLength);
                 continue;
             }
             if(NULL == pbOutBuf)
@@ -217,7 +240,7 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
             m_pDataBufList.push_back(pbOutBuf);
             pbOutBuf = NULL;
             ptFrameInfo->Release();
-            break;
+            continue;
         }
 #endif
         iPutFrameLen+=tFileFrameInfo.iFrameLen;
@@ -292,6 +315,77 @@ int MediaConvert::GetData(unsigned char * o_pbData,int i_iMaxDataLen)
             delete it;
             m_pDataBufList.pop_front();
         }
+    }
+    return iRet;
+}
+
+/*****************************************************************************
+-Fuction		: GetData
+-Description	: GetData
+-Input			:
+-Output 		:
+-Return 		:
+* Modify Date	  Version		 Author 		  Modification
+* -----------------------------------------------
+* 2024/09/26	  V1.0.0		 Yu Weifeng 	  Created
+******************************************************************************/
+int MediaConvert::GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoEncBufLen,unsigned char * o_pbAudioEncBuf,int i_iMaxAudioEncBufLen)
+{
+    int iRet = -1;
+    
+    if(NULL != o_pbVideoEncBuf && i_iMaxVideoEncBufLen>4)
+    {
+        switch(m_eDstVideoEncType)
+        {
+            case MEDIA_ENCODE_TYPE_H264:
+            {
+                snprintf((char *)o_pbVideoEncBuf,i_iMaxVideoEncBufLen,"%s","h264");
+                iRet=0;
+                break;
+            }
+            case MEDIA_ENCODE_TYPE_H265:
+            {
+                snprintf((char *)o_pbVideoEncBuf,i_iMaxVideoEncBufLen,"%s","h265");
+                iRet=0;
+                break;
+            }
+            default:
+            {
+                printf("m_eDstVideoEncType err %d %d\r\n",i_iMaxVideoEncBufLen,m_eDstVideoEncType);
+                iRet=-1;
+                break;
+            }
+        }
+    }
+
+    if(NULL != o_pbAudioEncBuf && i_iMaxAudioEncBufLen>4)
+    {
+        switch(m_eDstAudioEncType)
+        {
+            case MEDIA_ENCODE_TYPE_AAC:
+            {
+                snprintf((char *)o_pbAudioEncBuf,i_iMaxAudioEncBufLen,"%s","aac");
+                iRet=0;
+                break;
+            }
+            case MEDIA_ENCODE_TYPE_G711A:
+            {
+                snprintf((char *)o_pbAudioEncBuf,i_iMaxAudioEncBufLen,"%s","g711a");
+                iRet=0;
+                break;
+            }
+            default:
+            {
+                printf("m_eDstAudioEncType err %d %d\r\n",i_iMaxAudioEncBufLen,m_eDstAudioEncType);
+                iRet=-1;
+                break;
+            }
+        }
+    }
+    if(iRet<0)
+    {
+        printf("GetEncodeType err %d %d\r\n",i_iMaxVideoEncBufLen,i_iMaxAudioEncBufLen);
+        return iRet;
     }
     return iRet;
 }
@@ -384,7 +478,7 @@ FRAME_INFO* MediaConvert::MediaToPri(T_MediaFrameInfo * i_ptMediaFrame)
 	ptFrameInfo->nHeight = i_ptMediaFrame->dwHeight;//h265 pc浏览器 b帧；手机浏览器帧切片，都需要转码
 
     FRAME_INFO* pFrame = CSTDStream::NewFrame(ptFrameInfo, (const char*)i_ptMediaFrame->pbFrameStartPos, i_ptMediaFrame->iFrameLen);
-
+    pFrame->AddRef();
     delete ptFrameInfo;
 	return pFrame;
 	return NULL;
@@ -1045,5 +1139,24 @@ mp4返回一个gop
 int GetData(unsigned char * o_pbData,int i_iMaxDataLen)
 {
     return MediaConvert::Instance()->GetData(o_pbData,i_iMaxDataLen);
+}
+
+
+/*****************************************************************************
+-Fuction        : GetData
+-Description    : 一次返回输入数据的最小单位，
+比如裸流就返回一帧
+flv返回一帧对应的tag
+mp4返回一个gop
+-Input          : 
+-Output         : 
+-Return         : 
+* Modify Date     Version             Author           Modification
+* -----------------------------------------------
+* 2020/01/01      V1.0.0              Yu Weifeng       Created
+******************************************************************************/
+int GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoEncBufLen,unsigned char * o_pbAudioEncBuf,int i_iMaxAudioEncBufLen)
+{
+    return MediaConvert::Instance()->GetEncodeType(o_pbVideoEncBuf,i_iMaxVideoEncBufLen,o_pbAudioEncBuf,i_iMaxAudioEncBufLen);
 }
 
