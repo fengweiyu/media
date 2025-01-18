@@ -34,6 +34,8 @@
         </label> 
         <br><br>
         <button id="saveButton" disabled>格式转换</button>
+        <br><br>
+        <video id="localVideoElement" playsinline controls autoplay muted style="width: 80%;height: auto;display: none;"></video>
     </center>
 
     <script>
@@ -41,6 +43,8 @@
         {
             console.log('onRuntimeInitialized:'); 
         }
+        const localVideoElement = document.getElementById('localVideoElement');
+        const mediaSource = new MediaSource();
         // 获取所有复选框  
         const checkboxes = document.querySelectorAll('input[type="checkbox"][name="options"]');  
 
@@ -97,12 +101,81 @@
             console.log('file addEventListener:'+filename+' type:'+filetype+' byteLength:'+arrayBuffer.byteLength);    
             // 选择所有的复选框  
             //Module.onRuntimeInitialized = function() 
-            {
-                convert();
-            }
+            localVideoElement.src = URL.createObjectURL(mediaSource); 
+            mediaSource.addEventListener('sourceopen', function() 
+            {  
+                var sourceBuffer=null;  
+                const typedArray = convert(arrayBuffer,GetDstName());
+                if (typedArray) 
+                { // 成功创建，输出内容
+                    if(GetDstName() == ".mp4")
+                    {
+                        if(null == sourceBuffer)
+                        {// codecs="avc1.42E01E, mp4a.40.2" h264 aac   
+                            var VideoCodec=null;
+                            var AudioCodec=null;
+                            [v,a]=GetVideoDstEnc();
+                            if (v.includes("h264"))//video/webm; codecs="avc1.64001E"：用于 WebM 容器中的 H.264 视频（通常则使用 VP8 或 VP9）。
+                            {//video/mp4; codecs="avc1.64001E"：用于 MP4 容器中的 H.264 视频。
+                                VideoCodec="avc1.42E01E";//avc1.42E01E
+                            }//video/mp2t; codecs="avc1.42E01E"：用于 MPEG-TS 容器中的 H.264 视频
+                            else if (v.includes("h265"))
+                            {//video/mp4; codecs="hevc"：用于 MPEG-4 容器格式中的 H.265 视频。
+                                VideoCodec="hvc1.1.6.L93.B0";
+                            }//用于传输流（如 TS 或 MPEG-TS）编码中的 H.265 视频。
+                            if (a.includes("aac"))
+                            {
+                                AudioCodec="mp4a.40.2";//audio/mp4; codecs="mp4a.40.2"：这是一般用于 MP4 容器中的 AAC 音频格式。
+                            }//audio/aac：用于裸 AAC 数据。
+                            else if(a.includes("g711a"))
+                            {
+                                AudioCodec="law";//audio/mp4; codecs="law"：表示使用 G.711 A-law 编码的音频数据。
+                            }//audio/g711：用于直接表示 G.711 编码的数据。
+                            if(null == VideoCodec || null ==AudioCodec)
+                            {
+                                console.log('GetVideoDstEnc err v '+VideoCodec+' a '+AudioCodec);    
+                            }
+                            else
+                            {
+                                sourceBuffer = mediaSource.addSourceBuffer('video/mp4; codecs="'+VideoCodec+','+AudioCodec+'"');
+                                localVideoElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
+                            }
+
+                        }
+                        if(null != sourceBuffer)
+                            sourceBuffer.appendBuffer(typedArray);    
+                    }   
+                    DownloadMedia(typedArray,GetDstName());
+                } 
+                else
+                {// 处理未成功创建的情况 
+                    console.log('FormatConvert err'); 
+                } 
+                /*sourceBuffer.addEventListener('updateend', function() {  
+                    if (!sourceBuffer.updating) {  
+                        //mediaSource.endOfStream();  
+                        //localVideoElement.play();  
+                    }  
+                }); */
+            });
         }); 
-        function convert() 
-        {         
+        function DownloadMedia(typedArray,dstType)
+        {
+            // 创建 Blob 对象  
+            const blob = new Blob([typedArray]);  
+            // 创建下载链接  
+            const url = URL.createObjectURL(blob);  
+            const a = document.createElement('a');  
+            a.href = url;  
+            a.download = filename+dstType; // 指定下载文件名  
+            document.body.appendChild(a);  
+            a.click(); // 自动点击下载链接  
+            document.body.removeChild(a); // 下载后移除临时链接  
+            // 释放 Blob URL  
+            URL.revokeObjectURL(url); 
+        }
+        function GetDstName()
+        {
             const selectedHobbies = [];  
             // 遍历复选框，检测哪些被选中  
             checkboxes.forEach(checkbox => {  
@@ -111,7 +184,28 @@
                     selectedHobbies.push(checkbox.value); // 添加到数组  
                 }  
             }); 
-            const dstType = '.'+selectedHobbies[0];
+            const dstName = '.'+selectedHobbies[0];
+            return dstName;
+        }
+        function GetVideoDstEnc()
+        {
+            var bufDstMaxLen=10;
+            let bufDstVideoEnc = Module._malloc(bufDstMaxLen);
+            let bufDstAudioEnc = Module._malloc(bufDstMaxLen);
+            var ret = Module._GetEncodeType(bufDstVideoEnc,bufDstMaxLen,bufDstAudioEnc,bufDstMaxLen);
+            let VideoArray = new Uint8Array(bufDstMaxLen);
+            VideoArray.set(new Uint8Array(Module.HEAPU8.buffer, bufDstVideoEnc, bufDstMaxLen)); // 将C中的数组拷贝到JS数组中
+            let AudioArray = new Int8Array(bufDstMaxLen);
+            AudioArray.set(new Uint8Array(Module.HEAP8.buffer, bufDstAudioEnc, bufDstMaxLen)); // 将C中的数组拷贝到JS数组中
+            const stringVideo = String.fromCharCode.apply(null, VideoArray);  
+            const stringAudio = String.fromCharCode.apply(null, AudioArray);  
+            Module._free(bufDstVideoEnc);
+            Module._free(bufDstAudioEnc);
+            return [stringVideo,stringAudio];
+        }
+        function convert(srcBuffer,dstName) 
+        {         
+            const dstType = dstName;
             /*const arr = new Float32Array([1.0, 2.0, 3.0]); // 示例数组  
             const size = arr.length * arr.BYTES_PER_ELEMENT; // 计算大小  
             const ptr = instance._malloc(size); // 在Wasm内存中申请空间  
@@ -124,7 +218,7 @@
 	        let arrSrctype = intArrayFromString(filetype).concat(0);
 	        let bufSrctype = Module._malloc(arrSrctype.length);
 	        Module.HEAPU8.set(arrSrctype, bufSrctype);
-            const uint8View = new Uint8Array(arrayBuffer);
+            const uint8View = new Uint8Array(srcBuffer);//arrayBuffer
 	        let bufSrcFrame = Module._malloc(uint8View.byteLength);
 	        Module.HEAPU8.set(uint8View,bufSrcFrame);//bufSrcFrame,arrayBuffer,要Uint8Array才可以设置进去拷贝，arrayBuffer不能拷贝
             //const lengthPtr = Module._malloc(arrayBuffer.byteLength);
@@ -146,20 +240,9 @@
             Module._free(bufSrctype);
             Module._free(bufSrcFrame);
             Module._free(bufDstFrame);
-            // 创建 Blob 对象  
-            const blob = new Blob([copiedArray]);  
-            // 创建下载链接  
-            const url = URL.createObjectURL(blob);  
-            const a = document.createElement('a');  
-            a.href = url;  
-            a.download = filename+dstType; // 指定下载文件名  
-            document.body.appendChild(a);  
-            a.click(); // 自动点击下载链接  
-            document.body.removeChild(a); // 下载后移除临时链接  
-
-            // 释放 Blob URL  
-            URL.revokeObjectURL(url);  
-            
+            if(len>0)    
+                return copiedArray;
+            return null;            
         } 
         function formatDate(date) 
         {  
