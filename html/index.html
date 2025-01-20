@@ -66,6 +66,7 @@
         });  
         const fileInput = document.getElementById('fileInput');  
         const saveButton = document.getElementById('saveButton');  
+
         let arrayBuffer;  
         let filename;
         let filetype;
@@ -145,7 +146,7 @@
                         if(null != sourceBuffer)
                             sourceBuffer.appendBuffer(typedArray);    
                     }   
-                    DownloadMedia(typedArray,GetDstName());
+                    DownloadMedia(typedArray,filename+GetDstName());
                 } 
                 else
                 {// 处理未成功创建的情况 
@@ -159,7 +160,8 @@
                 }); */
             });
         }); 
-        function DownloadMedia(typedArray,dstType)
+
+        function DownloadMedia(typedArray,downName)
         {
             // 创建 Blob 对象  
             const blob = new Blob([typedArray]);  
@@ -167,7 +169,7 @@
             const url = URL.createObjectURL(blob);  
             const a = document.createElement('a');  
             a.href = url;  
-            a.download = filename+dstType; // 指定下载文件名  
+            a.download = downName; // 指定下载文件名  
             document.body.appendChild(a);  
             a.click(); // 自动点击下载链接  
             document.body.removeChild(a); // 下载后移除临时链接  
