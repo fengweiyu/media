@@ -114,7 +114,7 @@
                         {// codecs="avc1.42E01E, mp4a.40.2" h264 aac   
                             var VideoCodec=null;
                             var AudioCodec=null;
-                            [v,a]=GetVideoDstEnc();
+                            [v,a]=GetMediaDstEnc();
                             if (v.includes("h264"))//video/webm; codecs="avc1.64001E"：用于 WebM 容器中的 H.264 视频（通常则使用 VP8 或 VP9）。
                             {//video/mp4; codecs="avc1.64001E"：用于 MP4 容器中的 H.264 视频。
                                 VideoCodec="avc1.42E01E";//avc1.42E01E
@@ -129,11 +129,11 @@
                             }//audio/aac：用于裸 AAC 数据。
                             else if(a.includes("g711a"))
                             {
-                                AudioCodec="law";//audio/mp4; codecs="law"：表示使用 G.711 A-law 编码的音频数据。
+                                AudioCodec="alaw";//audio/mp4; codecs="law"：表示使用 G.711 A-law 编码的音频数据。
                             }//audio/g711：用于直接表示 G.711 编码的数据。
                             if(null == VideoCodec || null ==AudioCodec)
                             {
-                                console.log('GetVideoDstEnc err v '+VideoCodec+' a '+AudioCodec);    
+                                console.log('GetMediaDstEnc err v '+VideoCodec+' a '+AudioCodec);    
                             }
                             else
                             {
@@ -187,7 +187,7 @@
             const dstName = '.'+selectedHobbies[0];
             return dstName;
         }
-        function GetVideoDstEnc()
+        function GetMediaDstEnc()
         {
             var bufDstMaxLen=10;
             let bufDstVideoEnc = Module._malloc(bufDstMaxLen);
