@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8"> 
+    <title>MediaConvert.js demo</title>
+  </head>
+
+  <body>
+    
+    <!--script type="module" src="./record.js"></script-->
+    <center>
+        <h1><a href="">record.js demo</a></h1>
+    </center>
+        <h2>请选择一个输入文件:</h2>
+    <center>
+        <br>
+        <button id="startRecButton">开始录像</button>
+        <br><br>
+        <button id="stopRecButton">停止录像</button>
+    </center> 
+        <h2>请选择一个输出格式:</h2>
+    <center>
+        <label>  
+            <input type="checkbox" name="options" value="pri" > pri  
+        </label> 
+        <label>  
+            <input type="checkbox" name="options" value="flv" > flv  
+        </label>  
+        <label>  
+            <input type="checkbox" name="options" value="mp4" checked> mp4  
+        </label>  
+        <label>  
+            <input type="checkbox" name="options" value="VideoRaw"> VideoRaw  
+        </label>
+        <label>  
+            <input type="checkbox" name="options" value="AudioRaw"> AudioRaw  
+        </label> 
+        <br><br>
+        <button id="saveButton" disabled>格式转换</button>
+        <br><br>
+        <video id="localVideoElement" playsinline controls autoplay muted style="width: 80%;height: auto;display: none;"></video>
+    </center>
+
+    <script type="module" >
+        import record from './record.js';
+        // const record = require('./record'); // 引入模块 
+
+        const localVideoElement = document.getElementById('localVideoElement');
+
+        // 获取所有复选框  
+        const checkboxes = document.querySelectorAll('input[type="checkbox"][name="options"]');  
+        checkboxes.forEach(checkbox => 
+        {  
+            checkbox.addEventListener('change', function() 
+            {  
+                if (this.checked) {  
+                    // 如果当前复选框被选中，取消选中其他复选框  
+                    checkboxes.forEach(cb => 
+                    {  
+                        if (cb !== this) 
+                        {  
+                            cb.checked = false; // 取消其他复选框的选中状态  
+                        }  
+                    });  
+                }  
+            });  
+        });  
+        const fileInput = document.getElementById('fileInput');  
+        const saveButton = document.getElementById('saveButton');  
+
+        const startRecButton = document.getElementById('startRecButton');
+        const stopRecButton = document.getElementById('stopRecButton');
+
+        const mRecord = new record();
+        startRecButton.addEventListener('click', mRecord.GetUserMedia);//这样实质还是把GetMedia当静态函数访问
+        stopRecButton.addEventListener('click', mRecord.HandleUserMedia);
+
+    </script>
+  </body>
+</html>
