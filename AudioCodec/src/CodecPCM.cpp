@@ -163,21 +163,21 @@ int CodecPCM::UpSampleRate(unsigned char * i_abSrcBuf,int i_iSrcBufLen,unsigned 
         AC_LOGE("UpSampleRate dwBitsPerSample err %d %d\r\n",m_tSrcCodecParam.dwBitsPerSample,m_tDstCodecParam.dwBitsPerSample);
         return iRet;
     }
-    iDstSampleCnt=(float)i_iSrcBufLen*m_tDstCodecParam.dwSampleRate/(2*m_tSrcCodecParam.dwSampleRate);//优化计算后
+    iDstSampleCnt=(float)i_iSrcBufLen*m_tDstCodecParam.dwSampleRate/(sizeof(short)*m_tSrcCodecParam.dwSampleRate);//优化计算后
     iDiffSampleRate=m_tDstCodecParam.dwSampleRate/m_tSrcCodecParam.dwSampleRate;
     pwSrcData=(short *)i_abSrcBuf;
     pwDstData=(short *)o_abDstBuf;
     j=0;
-    for (i = 0; i < i_iSrcBufLen/2; i ++) // 计算每个输入样本对应的输出采样频率增量  
+    for (i = 0; i < i_iSrcBufLen/sizeof(short); i ++) // 计算每个输入样本对应的输出采样频率增量  
     {  
-        if(i*iDiffSampleRate*2>i_iDstBufMaxLen)
+        if(i*iDiffSampleRate*sizeof(short)>i_iDstBufMaxLen)
         {
             AC_LOGE("DownSampleRate err DstBufMaxLen %d %d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
             return iRet;
         }
         pwDstData[iCurSampleCnt] = pwSrcData[i]; // 将每个输入样本复制到输出的相应位置，每隔5个插入一份  ,这里放第一个
         // 进行线性插值的简单实现  
-        if (i < i_iSrcBufLen/2 - 1) //如果大于即输入样本数不够，则使用计算后的最后一个样本值统一赋值或者不处理填0无声音
+        if (i < i_iSrcBufLen/sizeof(short) - 1) //如果大于即输入样本数不够，则使用计算后的最后一个样本值统一赋值或者不处理填0无声音
         {  
             for (j = 1; j < iDiffSampleRate; j++) 
             { //第一个后面的由这里插入
@@ -203,8 +203,9 @@ int CodecPCM::UpSampleRate(unsigned char * i_abSrcBuf,int i_iSrcBufLen,unsigned 
         {//样本数少了，则采集多些
             iDiffSampleRate=m_tDstCodecParam.dwSampleRate/m_tSrcCodecParam.dwSampleRate+1;//iDiffSampleRate++;//由于计算误差，这样会导致采样间隙过大
         }
+        //AC_LOGD("%d ",iCurSampleCnt);
     }  
-    iRet=iCurSampleCnt*2;
+    iRet=iCurSampleCnt*sizeof(short);
     return iRet;
 }
 
@@ -248,17 +249,17 @@ int CodecPCM::DownSampleRate(unsigned char * i_abSrcBuf,int i_iSrcBufLen,unsigne
         AC_LOGE("dwBitsPerSample err %d %d\r\n",m_tSrcCodecParam.dwBitsPerSample,m_tDstCodecParam.dwBitsPerSample);
         return iRet;
     }
-    fSrcSampleTime=(float)i_iSrcBufLen/2*1000/m_tSrcCodecParam.dwSampleRate;//采样次数除以采样率就是时间，这里是ms单位
+    fSrcSampleTime=(float)i_iSrcBufLen/sizeof(short)*1000/m_tSrcCodecParam.dwSampleRate;//采样次数除以采样率就是时间，这里是ms单位
     iDstSampleCnt=fSrcSampleTime*m_tDstCodecParam.dwSampleRate/1000;//采样时间乘以采样率就是采样次数(样本数)
-    iDstSampleCnt=(float)i_iSrcBufLen*m_tDstCodecParam.dwSampleRate/(2*m_tSrcCodecParam.dwSampleRate);//优化计算后
+    iDstSampleCnt=(float)i_iSrcBufLen*m_tDstCodecParam.dwSampleRate/(sizeof(short)*m_tSrcCodecParam.dwSampleRate);//优化计算后
     
     iDiffSampleRate=m_tSrcCodecParam.dwSampleRate/m_tDstCodecParam.dwSampleRate;
     pwSrcData=(short *)i_abSrcBuf;
     pwDstData=(short *)o_abDstBuf;
     j=0;
-    for (i = 0; i < i_iSrcBufLen/2; i += iDiffSampleRate) 
+    for (i = 0; i < i_iSrcBufLen/sizeof(short); i += iDiffSampleRate) 
     {  
-        if(j*2>i_iDstBufMaxLen)
+        if(j*sizeof(short)>i_iDstBufMaxLen)
         {
             AC_LOGE("DownSampleRate err DstBufMaxLen %d %d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
             return iRet;
@@ -278,7 +279,7 @@ int CodecPCM::DownSampleRate(unsigned char * i_abSrcBuf,int i_iSrcBufLen,unsigne
         }
         //AC_LOGD("%d ",i);
     }  
-    iRet=j*2;
+    iRet=j*sizeof(short);
     return iRet;
 }
 
