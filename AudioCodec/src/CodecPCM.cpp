@@ -150,7 +150,9 @@ int CodecPCM::UpSampleRate(unsigned char * i_abSrcBuf,int i_iSrcBufLen,unsigned 
     short * pwDstData=NULL;
     int i=0,j=0;
     int iDiffSampleRate=0;
-    
+    int iDstSampleCnt=0;
+    int iCurSampleCnt=0;
+
     if(m_tSrcCodecParam.dwBitsPerSample!=m_tDstCodecParam.dwBitsPerSample)
     {//暂不支持采样位数转换
         AC_LOGE("UpSampleRate.dwBitsPerSample %d!=m_tDstCodecParam.dwBitsPerSample %d\r\n",m_tSrcCodecParam.dwBitsPerSample,m_tDstCodecParam.dwBitsPerSample);
@@ -161,28 +163,48 @@ int CodecPCM::UpSampleRate(unsigned char * i_abSrcBuf,int i_iSrcBufLen,unsigned 
         AC_LOGE("UpSampleRate dwBitsPerSample err %d %d\r\n",m_tSrcCodecParam.dwBitsPerSample,m_tDstCodecParam.dwBitsPerSample);
         return iRet;
     }
+    iDstSampleCnt=(float)i_iSrcBufLen*m_tDstCodecParam.dwSampleRate/(2*m_tSrcCodecParam.dwSampleRate);//优化计算后
     iDiffSampleRate=m_tDstCodecParam.dwSampleRate/m_tSrcCodecParam.dwSampleRate;
     pwSrcData=(short *)i_abSrcBuf;
     pwDstData=(short *)o_abDstBuf;
     j=0;
     for (i = 0; i < i_iSrcBufLen/2; i ++) // 计算每个输入样本对应的输出采样频率增量  
     {  
-        if(i*5*2>i_iDstBufMaxLen)
+        if(i*iDiffSampleRate*2>i_iDstBufMaxLen)
         {
             AC_LOGE("DownSampleRate err DstBufMaxLen %d %d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
             return iRet;
         }
-        pwDstData[i * 5] = pwSrcData[i]; // 将每个输入样本复制到输出的相应位置，每隔5个插入一份  
+        pwDstData[iCurSampleCnt] = pwSrcData[i]; // 将每个输入样本复制到输出的相应位置，每隔5个插入一份  ,这里放第一个
         // 进行线性插值的简单实现  
         if (i < i_iSrcBufLen/2 - 1) //如果大于即输入样本数不够，则使用计算后的最后一个样本值统一赋值或者不处理填0无声音
         {  
-            for (j = 1; j < 5; j++) 
-            {  
-                pwDstData[i * 5 + j] = (pwSrcData[i] * (5 - j) + pwSrcData[i + 1] * j) / 5;//比如第一个是前一个五分之四加后一个五分之一  
-            }  //第一个等于前一个加后一个值与前一个差值的百分之二十，第二个是百分之四十，实现线性插值
-        }  
+            for (j = 1; j < iDiffSampleRate; j++) 
+            { //第一个后面的由这里插入
+                pwDstData[iCurSampleCnt + j] = (pwSrcData[i] * (iDiffSampleRate - j) + pwSrcData[i + 1] * j) / iDiffSampleRate;//比如第一个是前一个五分之四加后一个五分之一  
+            } //第一个等于前一个加后一个值与前一个差值的百分之二十，第二个是百分之四十，实现线性插值
+        }
+        else //i = i_iSrcBufLen/2 - 1 ,最后一个源数据
+        {
+            for (j = 1; j < iDiffSampleRate; j++) 
+            { 
+                pwDstData[iCurSampleCnt + j] = pwSrcData[i];//最后一个样本值统一赋值或者不处理填0无声音
+            } 
+        }
+        iCurSampleCnt+=iDiffSampleRate;
+        
+        //动态调整算法
+        iDstSampleCnt=(float)(i+1)*m_tDstCodecParam.dwSampleRate/m_tSrcCodecParam.dwSampleRate;//计算目标采样率同样时间对应的样本数(目标样本数)
+        if(iCurSampleCnt>iDstSampleCnt)//
+        {//样本数多了，则采集少些
+            iDiffSampleRate=m_tDstCodecParam.dwSampleRate/m_tSrcCodecParam.dwSampleRate;//iDiffSampleRate--;//由于计算误差，这样会导致采样间隙过大
+        }
+        else if(iCurSampleCnt<iDstSampleCnt)
+        {//样本数少了，则采集多些
+            iDiffSampleRate=m_tDstCodecParam.dwSampleRate/m_tSrcCodecParam.dwSampleRate+1;//iDiffSampleRate++;//由于计算误差，这样会导致采样间隙过大
+        }
     }  
-    iRet=i*5*2;
+    iRet=iCurSampleCnt*2;
     return iRet;
 }
 
