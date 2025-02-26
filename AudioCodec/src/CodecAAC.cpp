@@ -252,12 +252,13 @@ int CodecAAC::Encode(unsigned char * i_abSrcBuf,int i_iSrcBufLen,unsigned char *
         AC_LOGE("Encoding failed\n");
         return iRet;
     }
+    m_pbEncodeBuf->Delete(m_pbEncodeBuf->iBufLen);//里面会存储输入缓存数据(这种使用方式可能会带来噪声，放大原噪声)
     if (out_args.numOutBytes == 0)
     {
         AC_LOGD("out_args.numOutBytes == 0 %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
         return 0;
     }
-    m_pbEncodeBuf->Delete(out_args.numInSamples*in_elem_size);
+    //m_pbEncodeBuf->Delete(out_args.numInSamples*in_elem_size);
     
     iRet=out_args.numOutBytes;
 	return iRet;
