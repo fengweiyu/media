@@ -166,7 +166,7 @@ static int proc(const char * i_strSrcFilePath,const char *i_strDstFilePath)
         tAudioSrcCodecTypeParam.eAudioCodecType=eAudioSrcCodecType;
         memset(&tAudioDstCodecTypeParam,0,sizeof(T_AudioCodecParam));
         tAudioDstCodecTypeParam.eAudioCodecType=eAudioDstCodecType;
-        tAudioDstCodecTypeParam.dwSampleRate=8000;//tAudioDstCodecTypeParam.dwSampleRate=44100;//tAudioDstCodecTypeParam.dwSampleRate=8000;
+        //tAudioDstCodecTypeParam.dwSampleRate=44100;//tAudioDstCodecTypeParam.dwSampleRate=44100;//tAudioDstCodecTypeParam.dwSampleRate=8000;
         
         pbFileBuf = new unsigned char [iMaxLen];
         if(NULL == pbFileBuf)
