@@ -4,6 +4,28 @@ cmake_minimum_required(VERSION 3.10)
 project (media)
  
 #set(CMAKE_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX}/ThirdLib/media) #CMAKE_INSTALL_PREFIX 外面设置，内部设置无效
+if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+    #子目录也会设置CMAKE_INSTALL_PREFIX，但是子目录退出后不生效，所以这里设置全局的，
+    #这样这里生成的Makefile可以执行install到下面这个目录，缺点是子目录相关的库文件头文件也会拷贝过来
+    set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/build/wasm/x64)
+    set(AAC_LIB_PATH ${PROJECT_SOURCE_DIR}/AudioCodec/third/lib/wasm/fdk-aac/lib/libfdk-aac.a)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows") #WIN32
+    #子目录也会设置CMAKE_INSTALL_PREFIX，但是子目录退出后不生效，所以这里设置全局的，
+    #这样这里生成的Makefile可以执行install到下面这个目录，缺点是子目录相关的库文件头文件也会拷贝过来
+    set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/build/win/x64)
+    set(AAC_LIB_PATH ${PROJECT_SOURCE_DIR}/AudioCodec/third/lib/win/fdk-aac/lib/libfdk-aac.lib)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    #子目录也会设置CMAKE_INSTALL_PREFIX，但是子目录退出后不生效，所以这里设置全局的，
+    #这样这里生成的Makefile可以执行install到下面这个目录，缺点是子目录相关的库文件头文件也会拷贝过来
+    set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/build/linux/x64)
+    set(AAC_LIB_PATH ${PROJECT_SOURCE_DIR}/AudioCodec/third/lib/linux/fdk-aac/lib/libfdk-aac.a)
+else()  
+    message("CMAKE_SYSTEM_NAME err is: ${CMAKE_SYSTEM_NAME}")
+endif() 
+# 添加 lib 子目录  
+add_subdirectory(AudioCodec) 
+
+
 
 # 设置C++标准为C++11
 set(CMAKE_CXX_STANDARD 11)
@@ -74,8 +96,8 @@ endif()
 file(GLOB demo_list demo/MediaConvert.cpp demo/MediaConvertMain.cpp)
 add_executable(MediaConvert ${demo_list})
  #set(CMAKE_EXECUTABLE_SUFFIX ".html") # 编译生成.html
-set(MC_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/src/include ${PROJECT_SOURCE_DIR}/demo)
-set(MC_LINK_LIBS media)
+set(MC_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/src/include ${PROJECT_SOURCE_DIR}/demo ${PROJECT_SOURCE_DIR}/AudioCodec/src/include)
+set(MC_LINK_LIBS media AudioCodec ${AAC_LIB_PATH})
 if(DEFINED PRI)  
     add_definitions(-DSUPPORT_PRI)
     set(MC_INCLUDE_DIRS ${MC_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/third/XBasic/include ${PROJECT_SOURCE_DIR}/third/XBasic/include/XBasic
