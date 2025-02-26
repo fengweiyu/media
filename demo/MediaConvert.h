@@ -18,6 +18,7 @@
 #include <string>
 #include <list>
 
+#include "AudioCodec.h"
 #include "MediaHandle.h"
 #ifdef SUPPORT_PRI
 #include "XStreamParser.h"
@@ -116,6 +117,8 @@ public:
     int GetData(unsigned char * o_pbData,int i_iMaxDataLen);
     int GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoEncBufLen,unsigned char * o_pbAudioEncBuf,int i_iMaxAudioEncBufLen);
 private:
+    int AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame);
+
     int SetH264NaluData(unsigned char i_bNaluType,unsigned char i_bStartCodeLen,unsigned char *i_pbNaluData,int i_iNaluDataLen,T_MediaFrameInfo *m_ptFrame);
     int SetH265NaluData(unsigned char i_bNaluType,unsigned char i_bStartCodeLen,unsigned char *i_pbNaluData,int i_iNaluDataLen,T_MediaFrameInfo *m_ptFrame);
     int ParseH264NaluFromFrame(T_MediaFrameInfo *m_ptFrame);
@@ -131,6 +134,9 @@ private:
     E_MediaEncodeType m_eDstVideoEncType;
     E_MediaEncodeType m_eDstAudioEncType;
     list<DataBuf *> m_pDataBufList;
+    AudioCodec * m_pAudioCodec;
+    unsigned char * m_pAudioTranscodeBuf;
+    
     static MediaConvert *m_pInstance;
 };
 EM_EXPORT_API(int) InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const char *i_strSrcName,const char *i_strDstName);
