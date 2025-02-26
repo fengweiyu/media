@@ -157,6 +157,18 @@ int AudioCodec::Transcode(unsigned char * i_abSrcBuf,int i_iSrcBufLen,T_AudioCod
         {
             memcpy(&tCodecParam,&i_tSrcCodecParam,sizeof(T_AudioCodecParam));
         }
+        if(tCodecParam.dwSampleRate==0)
+        {
+            tCodecParam.dwSampleRate=i_tSrcCodecParam.dwSampleRate;
+        }
+        if(tCodecParam.dwBitsPerSample==0)
+        {
+            tCodecParam.dwBitsPerSample=i_tSrcCodecParam.dwBitsPerSample;
+        }
+        if(tCodecParam.dwChannels==0)
+        {
+            tCodecParam.dwChannels=i_tSrcCodecParam.dwChannels;
+        }
     }
     if(NULL == m_pRawDataHandle)
     {
