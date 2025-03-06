@@ -9,23 +9,38 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
     #这样这里生成的Makefile可以执行install到下面这个目录，缺点是子目录相关的库文件头文件也会拷贝过来
     set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/build/wasm/x64)
     set(AAC_LIB_PATH ${PROJECT_SOURCE_DIR}/AudioCodec/third/lib/wasm/fdk-aac/lib/libfdk-aac.a)
+    set(XBASIC_LIB_PATH ${PROJECT_SOURCE_DIR}/third/XBasic/lib/wasm/libXBasic.a)
+    set(XPROTOCOL_LIB_PATH ${PROJECT_SOURCE_DIR}/third/XProtocol/lib/wasm/libXProtocol.a)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows") #WIN32
     #子目录也会设置CMAKE_INSTALL_PREFIX，但是子目录退出后不生效，所以这里设置全局的，
     #这样这里生成的Makefile可以执行install到下面这个目录，缺点是子目录相关的库文件头文件也会拷贝过来
     set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/build/win/x64)
+    set(SYSTEM_PLAT_LIB_PATH Ws2_32.lib)
     set(AAC_LIB_PATH ${PROJECT_SOURCE_DIR}/AudioCodec/third/lib/win/fdk-aac/lib/libfdk-aac.lib)
+    set(XBASIC_LIB_PATH ${PROJECT_SOURCE_DIR}/third/XBasic/lib/win/XBasic_static.lib)
+    set(XPROTOCOL_LIB_PATH ${PROJECT_SOURCE_DIR}/third/XProtocol/lib/win/XProtocol_static.lib)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     #子目录也会设置CMAKE_INSTALL_PREFIX，但是子目录退出后不生效，所以这里设置全局的，
     #这样这里生成的Makefile可以执行install到下面这个目录，缺点是子目录相关的库文件头文件也会拷贝过来
     set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/build/linux/x64)
+    set(SYSTEM_PLAT_LIB_PATH pthread)
     set(AAC_LIB_PATH ${PROJECT_SOURCE_DIR}/AudioCodec/third/lib/linux/fdk-aac/lib/libfdk-aac.a)
+    set(XBASIC_LIB_PATH ${PROJECT_SOURCE_DIR}/third/XBasic/lib/linux/libXBasic.a 
+    ${PROJECT_SOURCE_DIR}/third/XBasic/lib/linux/libimgui.a 
+    ${PROJECT_SOURCE_DIR}/third/XBasic/lib/linux/libssl.a 
+    ${PROJECT_SOURCE_DIR}/third/XBasic/lib/linux/libcrypto.a  
+    ${PROJECT_SOURCE_DIR}/third/XBasic/lib/linux/libfmt.a
+    ${PROJECT_SOURCE_DIR}/third/XBasic/lib/linux/libiconv.a  
+    ${PROJECT_SOURCE_DIR}/third/XBasic/lib/linux/libz.a
+    ${PROJECT_SOURCE_DIR}/third/XBasic/lib/linux/libspdlog.a)
+    set(XPROTOCOL_LIB_PATH ${PROJECT_SOURCE_DIR}/third/XProtocol/lib/linux/libXProtocol.a )
 else()  
     message("CMAKE_SYSTEM_NAME err is: ${CMAKE_SYSTEM_NAME}")
 endif() 
 # 添加 lib 子目录  
 add_subdirectory(AudioCodec) 
 
-
+ 
 
 # 设置C++标准为C++11
 set(CMAKE_CXX_STANDARD 11)
@@ -97,12 +112,12 @@ file(GLOB demo_list demo/MediaConvert.cpp demo/MediaConvertMain.cpp)
 add_executable(MediaConvert ${demo_list})
  #set(CMAKE_EXECUTABLE_SUFFIX ".html") # 编译生成.html
 set(MC_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/src/include ${PROJECT_SOURCE_DIR}/demo ${PROJECT_SOURCE_DIR}/AudioCodec/src/include)
-set(MC_LINK_LIBS media AudioCodec ${AAC_LIB_PATH})
+set(MC_LINK_LIBS media AudioCodec ${AAC_LIB_PATH} ${SYSTEM_PLAT_LIB_PATH})
 if(DEFINED PRI)  
     add_definitions(-DSUPPORT_PRI)
     set(MC_INCLUDE_DIRS ${MC_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/third/XBasic/include ${PROJECT_SOURCE_DIR}/third/XBasic/include/XBasic
     ${PROJECT_SOURCE_DIR}/third/XProtocol/include ${PROJECT_SOURCE_DIR}/third/XProtocol/include/XProtocol/StreamParser)
-    set(MC_LINK_LIBS ${MC_LINK_LIBS} ${PROJECT_SOURCE_DIR}/third/XBasic/lib/wasm/libXBasic.a ${PROJECT_SOURCE_DIR}/third/XProtocol/lib/wasm/libXProtocol.a ) 
+    set(MC_LINK_LIBS ${MC_LINK_LIBS} ${XPROTOCOL_LIB_PATH} ${XBASIC_LIB_PATH}) 
 else()  
 endif()  
 target_include_directories(MediaConvert PUBLIC
@@ -110,6 +125,40 @@ target_include_directories(MediaConvert PUBLIC
 )
 target_link_libraries(MediaConvert PUBLIC ${MC_LINK_LIBS}) 
 install(TARGETS MediaConvert DESTINATION .) #安装目录 目录MediaConvert换成目录. 也可以，这样就在当前目录生成不会生成在MediaConvert目录下
+
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+add_subdirectory(test/cJSON-1.7.12) 
+add_subdirectory(test/http) 
+add_subdirectory(test/net) 
+# 收集源文件  
+file(GLOB test_list 
+    test/main.cpp
+    test/HttpServerDemo.cpp
+    test/HttpServerIO.cpp
+    test/HttpServerSession.cpp
+    test/HttpTestCase.cpp
+    demo/MediaConvert.cpp
+    )  # 可以根据你的目录结构调整 
+add_executable(MediaConvertTest ${test_list})
+
+target_include_directories(MediaConvertTest PUBLIC
+    ${MC_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/test
+    ${PROJECT_SOURCE_DIR}/test/http/include
+    ${PROJECT_SOURCE_DIR}/test/net/include
+    ${PROJECT_SOURCE_DIR}/test/cJSON-1.7.12
+)
+target_link_libraries(MediaConvertTest PUBLIC
+    ${MC_LINK_LIBS}
+    http
+    net
+    cJSON
+) 
+install(TARGETS MediaConvertTest DESTINATION .) #安装目录 目录MediaConvert换成目录. 也可以，这样就在当前目录生成不会生成在MediaConvert目录下
+endif()  
+
+
 
 #SET_TARGET_PROPERTIES(base64_static PROPERTIES OUTPUT_NAME base64)
 #SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/build/lib)
