@@ -81,6 +81,8 @@ int CodecPCM::Init(T_AudioCodecParam i_tSrcCodecParam,T_AudioCodecParam i_tDstCo
 {
     memcpy(&m_tSrcCodecParam,&i_tSrcCodecParam,sizeof(T_AudioCodecParam));
     memcpy(&m_tDstCodecParam,&i_tDstCodecParam,sizeof(T_AudioCodecParam));
+    AC_LOGW("CodecPCM dwSampleRate %d %d ,dwChannels %d %d ,dwBitsPerSample %d %d\r\n",m_tSrcCodecParam.dwSampleRate,m_tDstCodecParam.dwSampleRate,
+    m_tSrcCodecParam.dwChannels,m_tDstCodecParam.dwChannels,m_tSrcCodecParam.dwBitsPerSample,m_tDstCodecParam.dwBitsPerSample);
 	return 0;
 }
 
@@ -103,8 +105,6 @@ int CodecPCM::TransSampleRate(unsigned char * i_abBuf,int i_iBufLen,int i_iBufMa
         AC_LOGE("TransSampleRate err NULL %d\r\n",i_iBufLen);
         return iRet;
     }
-    AC_LOGD("CodecPCM dwSampleRate %d %d ,dwChannels %d %d ,dwBitsPerSample %d %d\r\n",m_tSrcCodecParam.dwSampleRate,m_tDstCodecParam.dwSampleRate,
-    m_tSrcCodecParam.dwChannels,m_tDstCodecParam.dwChannels,m_tSrcCodecParam.dwBitsPerSample,m_tDstCodecParam.dwBitsPerSample);
     if(m_tSrcCodecParam.dwSampleRate==m_tDstCodecParam.dwSampleRate)
     {
         return i_iBufLen;

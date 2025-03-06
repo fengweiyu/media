@@ -203,10 +203,15 @@ int CodecAAC::Encode(unsigned char * i_abSrcBuf,int i_iSrcBufLen,unsigned char *
     void *in_ptr, *out_ptr;
     AACENC_ERROR err;
     
-    if(NULL == o_abDstBuf || (NULL == i_abSrcBuf && (NULL == m_pbEncodeBuf ||m_pbEncodeBuf->iBufLen <= 0)))
+    if(NULL == o_abDstBuf)
     {
         AC_LOGE("CodecAAC Encode err %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
         return iRet;
+    }
+    if(NULL == i_abSrcBuf && (NULL == m_pbEncodeBuf ||m_pbEncodeBuf->iBufLen <= 0))
+    {
+        AC_LOGD("CodecAAC Encode no data %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
+        return 0;
     }
     if(NULL != i_abSrcBuf)
     {
@@ -259,7 +264,8 @@ int CodecAAC::Encode(unsigned char * i_abSrcBuf,int i_iSrcBufLen,unsigned char *
         return 0;
     }
     //m_pbEncodeBuf->Delete(out_args.numInSamples*in_elem_size);
-    
+    AC_LOGD("out_args.numOutBytes %d,%d\r\n",out_args.numOutBytes,out_args.numInSamples*in_elem_size);
+
     iRet=out_args.numOutBytes;
 	return iRet;
 }

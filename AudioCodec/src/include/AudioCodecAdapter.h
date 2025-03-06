@@ -19,7 +19,7 @@
 
 #define  AC_LOGW(...)     printf(__VA_ARGS__)
 #define  AC_LOGE(...)     printf(__VA_ARGS__)
-#define  AC_LOGD(...)     printf(__VA_ARGS__)
+#define  AC_LOGD(...)     //printf(__VA_ARGS__)
 #define  AC_LOGI(...)     printf(__VA_ARGS__)
 
 

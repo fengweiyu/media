@@ -200,18 +200,28 @@ int AudioCodec::Transcode(unsigned char * i_abSrcBuf,int i_iSrcBufLen,T_AudioCod
     if(NULL == i_abSrcBuf)
     {
         iRet = Encode(NULL,0,o_abDstBuf,i_iDstBufMaxLen);
-        if(iRet <= 0)
+        if(iRet<0)
         {
-            AC_LOGE("Transcode NULL Encode %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
+            AC_LOGE("Transcode Encode NULL err %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
+            return iRet;
+        }
+        if(iRet==0)
+        {
+            AC_LOGD("Transcode Encode NULL data no enough %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
             return iRet;
         }
         return iRet;
     }
     iDecodeLen = ((CodecPCM *)m_pRawDataHandle)->TransSampleRate(m_pbDecodeBuf,iDecodeLen,i_iSrcBufLen*12);
     iRet = Encode(m_pbDecodeBuf,iDecodeLen,o_abDstBuf,i_iDstBufMaxLen);
-    if(iRet <= 0)
+    if(iRet<0)
     {
         AC_LOGE("Transcode Encode err %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
+        return iRet;
+    }
+    if(iRet==0)
+    {
+        AC_LOGD("Transcode Encode data no enough %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
         return iRet;
     }
 	return iRet;
@@ -298,12 +308,16 @@ int AudioCodec::Encode(unsigned char * i_abSrcBuf,int i_iSrcBufLen,unsigned char
         return iRet;
     }
     iRet=m_ptEncoder->Encode(i_abSrcBuf,i_iSrcBufLen,o_abDstBuf,i_iDstBufMaxLen);
-    if(iRet<=0)
+    if(iRet<0)
     {
         AC_LOGE("AudioCodec Encode NULL err %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
         return iRet;
     }
-    
+    if(iRet==0)
+    {
+        AC_LOGD("AudioCodec Encode data no enough %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
+        return iRet;
+    }
     if(NULL != m_pEncoderHeader)
     {
         iLen=iRet;
