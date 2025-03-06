@@ -252,6 +252,6 @@ int FlvHandle::HevcProfileTierLevel(unsigned char* nalu, int bytes, unsigned cha
             n += 1;
     }
 
-    return bytes < n ? n : -1;
+    return bytes < n ? -1 : n;
 }
 

@@ -429,7 +429,7 @@ int RawVideoHandle::HevcProfileTierLevel(unsigned char* nalu, int bytes, unsigne
             n += 1;
     }
 
-    return bytes < n ? n : -1;
+    return bytes < n ? -1 : n;
 }
 
 char * H264Handle::m_strVideoFormatName=(char *)VIDEO_ENC_FORMAT_H264_NAME;

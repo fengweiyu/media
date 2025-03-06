@@ -732,6 +732,7 @@ int FMP4Handle::VpsToH265Extradata(unsigned char *i_pbVpsData,unsigned short i_w
     int iRet = -1;
     unsigned char abSodbVPS[FMP4_VPS_MAX_SIZE];
     int iSodbLen = 0;
+    unsigned char vps_id;
     unsigned char vps_max_sub_layers_minus1;
     unsigned char vps_temporal_id_nesting_flag;
     
@@ -747,11 +748,12 @@ int FMP4Handle::VpsToH265Extradata(unsigned char *i_pbVpsData,unsigned short i_w
         FMP4_LOGE("VpsToH265Extradata iSodbLen err %d \r\n", iSodbLen);
         return iRet;
     }
+	vps_id = abSodbVPS[2] >> 4;  // [0,1]-nalu type
     vps_max_sub_layers_minus1 = (abSodbVPS[3] >> 1) & 0x07;
     vps_temporal_id_nesting_flag = abSodbVPS[3] & 0x01;
     o_ptH265Extradata->numTemporalLayers = MAX(o_ptH265Extradata->numTemporalLayers, vps_max_sub_layers_minus1 + 1);
     o_ptH265Extradata->temporalIdNested = (o_ptH265Extradata->temporalIdNested || vps_temporal_id_nesting_flag) ? 1 : 0;
-    iRet = HevcProfileTierLevel(abSodbVPS + 6, iSodbLen - 6, vps_max_sub_layers_minus1, o_ptH265Extradata);
+    iRet = HevcProfileTierLevel(abSodbVPS + 6, iSodbLen - 6, vps_max_sub_layers_minus1, o_ptH265Extradata);//vps_max_sub_layers_minus1 改 0，vps没有后续可变
     if(iRet < 0)
     {
         FMP4_LOGE("HevcProfileTierLevel err %d \r\n", i_wVpsLen);
@@ -934,7 +936,7 @@ int FMP4Handle::HevcProfileTierLevel(unsigned char* nalu, int bytes, unsigned ch
             n += 1;
     }
 
-    return bytes < n ? n : -1;
+    return bytes < n ? -1 : n;
 }
 
 /*****************************************************************************

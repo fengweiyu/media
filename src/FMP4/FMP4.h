@@ -22,11 +22,17 @@ using std::string;
 using std::list;
 using std::map;
 
+#if 1
 #define  FMP4_LOGW     MH_LOGW
 #define  FMP4_LOGE     MH_LOGE
 #define  FMP4_LOGD     MH_LOGD
 #define  FMP4_LOGI     MH_LOGI
-
+#else
+#define  FMP4_LOGW     
+#define  FMP4_LOGE     
+#define  FMP4_LOGD     
+#define  FMP4_LOGI     
+#endif
 #define FMP4_MAX_TRAK_NUM 15
 
 #define Write16BE(p,val) \
