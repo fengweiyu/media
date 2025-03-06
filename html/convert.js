@@ -98,16 +98,25 @@ class convert
 					{
 						AudioCodec="alaw";//audio/mp4; codecs="law"：表示使用 G.711 A-law 编码的音频数据。
 					}//audio/g711：用于直接表示 G.711 编码的数据。
-					if(null == VideoCodec || null ==AudioCodec)
+					if(null != VideoCodec && null !=AudioCodec)
 					{
-						console.log('GetMediaDstEnc err v '+VideoCodec+' a '+AudioCodec);    
+                        sourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+VideoCodec+','+AudioCodec+'"');
+                        localVideoElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
+					}
+					else if(null != VideoCodec)
+					{
+                        sourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+VideoCodec+'"');
+                        localVideoElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
+					}
+					else if(null != AudioCodec)
+					{
+                        sourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+AudioCodec+'"');
+                        localVideoElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
 					}
 					else
 					{
-						sourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+VideoCodec+','+AudioCodec+'"');
-						localVideoElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
+						console.log('GetMediaDstEnc err v '+VideoCodec+' a '+AudioCodec);    
 					}
-
 				}
 				if(null != sourceBuffer)
 					sourceBuffer.appendBuffer(typedArray);    
