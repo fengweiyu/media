@@ -116,6 +116,8 @@ public:
     int Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaEncodeType i_eSrcEncType,E_StreamType i_eSrcStreamType,E_StreamType i_eDstStreamType);
     int GetData(unsigned char * o_pbData,int i_iMaxDataLen);
     int GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoEncBufLen,unsigned char * o_pbAudioEncBuf,int i_iMaxAudioEncBufLen);
+
+    static MediaConvert *m_pInstance;
 private:
     int AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame);
 
@@ -131,17 +133,18 @@ private:
 #endif
     MediaHandle m_oMediaHandle;
     DataBuf * m_pbInputBuf;
+	int m_iPutFrameLen;
     E_MediaEncodeType m_eDstVideoEncType;
     E_MediaEncodeType m_eDstAudioEncType;
     list<DataBuf *> m_pDataBufList;
     AudioCodec * m_pAudioCodec;
     unsigned char * m_pAudioTranscodeBuf;
     
-    static MediaConvert *m_pInstance;
 };
 EM_EXPORT_API(int) InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const char *i_strSrcName,const char *i_strDstName);
 EM_EXPORT_API(int) GetData(unsigned char * o_pbData,int i_iMaxDataLen);
 EM_EXPORT_API(int) GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoEncBufLen,unsigned char * o_pbAudioEncBuf,int i_iMaxAudioEncBufLen);
+EM_EXPORT_API(int)  Clean();
 
 
 #endif

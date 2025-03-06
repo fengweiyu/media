@@ -39,6 +39,7 @@ MediaConvert:: MediaConvert()
     m_pAudioCodec = NULL;
     m_pAudioCodec = new AudioCodec();
     m_pAudioTranscodeBuf = new unsigned char [MEDIA_FORMAT_MAX_LEN];
+    m_iPutFrameLen=0;
 }
 /*****************************************************************************
 -Fuction        : MediaConvert
@@ -99,7 +100,7 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
 	DataBuf * pbOutBuf =NULL;
 	int iRet = -1,iWriteLen=0;
 	int iHeaderLen=0;
-	int iPutFrameLen=0;
+	//int iPutFrameLen=0;
 
 #ifdef SUPPORT_PRI
     if(NULL == i_pbSrcData || i_iSrcDataLen <= 0)
@@ -113,14 +114,19 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
         NSXPTL::FRAME_INFO* pFrame = m_streamer.GetNextFrameNoSafe();
         if(pFrame == NULL)
         {
-            printf("pFrame == NULL [%x,%d,%d]\r\n",i_pbSrcData[0],i_iSrcDataLen,pFrame->nLength);
+            //printf("pFrame = NULL ,input pri data not enough [%x,Len %d]\r\n",i_pbSrcData[0],i_iSrcDataLen);
             break;
+        } 
+        if(pFrame->nEncodeType == ENCODE_VIDEO_JPG)
+        {
+            printf("ENCODE_VIDEO_JPG unsupport [%x,Len %d]\r\n",i_pbSrcData[0],i_iSrcDataLen);
+            return iRet;
         } 
         memset(&tFileFrameInfo,0,sizeof(T_MediaFrameInfo));
         iRet=PriToMedia(pFrame,&tFileFrameInfo);
         if(iRet<0)
         {
-            printf("PriToMedia err%d\r\n",pFrame->nEncodeType);
+            //printf("PriToMedia err%d\r\n",pFrame->nEncodeType);
             continue;
         }
         if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME ||
@@ -140,17 +146,18 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
             }
             m_eDstAudioEncType = tFileFrameInfo.eEncType;
         }
-
-        iPutFrameLen+=tFileFrameInfo.iFrameLen;
+        if(0 == m_iPutFrameLen)
+            printf("start PutFrameLen %d iFrameLen %d eFrameType[%d] eEncType[%d]\r\n",m_iPutFrameLen,tFileFrameInfo.iFrameLen,tFileFrameInfo.eFrameType,tFileFrameInfo.eEncType);
+        m_iPutFrameLen+=tFileFrameInfo.iFrameLen;
         if(NULL == pbOutBuf)
         {
-            pbOutBuf = new DataBuf(iPutFrameLen+MEDIA_FORMAT_MAX_LEN);
+            pbOutBuf = new DataBuf(m_iPutFrameLen+MEDIA_FORMAT_MAX_LEN);
         }
         iWriteLen = m_oMediaHandle.FrameToContainer(&tFileFrameInfo,i_eDstStreamType,pbOutBuf->pbBuf,pbOutBuf->iBufMaxLen,&iHeaderLen);
         if(iWriteLen < 0)
         {
-            printf("FrameToContainer err iWriteLen %d iFrameProcessedLen[%d]\r\n",iWriteLen,tFileFrameInfo.iFrameProcessedLen);
-            iPutFrameLen=0;
+            printf("!!!FrameToContainer err ,iWriteLen %d iFrameProcessedLen[%d]\r\n",iWriteLen,tFileFrameInfo.iFrameProcessedLen);
+            m_iPutFrameLen=0;
             break;
         }
         if(iWriteLen == 0)
@@ -162,13 +169,13 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
             }//如果每次都传入一个足够大的缓存，则不需要这么麻烦
             continue;
         }
-        printf("FrameToContainer iPutFrameLen %d iWriteLen %d iFrameProcessedLen[%d]\r\n",iPutFrameLen,iWriteLen,tFileFrameInfo.iFrameProcessedLen);
+        printf("FrameToContainer iPutFrameLen %d iWriteLen %d ProcessedLen[%d] iBufMaxLen[%d]\r\n",m_iPutFrameLen,iWriteLen,tFileFrameInfo.iFrameProcessedLen,pbOutBuf->iBufMaxLen);
         pbOutBuf->iBufLen=iWriteLen;
         m_pDataBufList.push_back(pbOutBuf);
         pbOutBuf = NULL;
         //int iRemain = MEDIA_FORMAT_MAX_LEN - (iWriteLen-iPutFrameLen);//没用到的封装缓存长度
         //iPutFrameLen=pbOutBuf->iBufMaxLen-iWriteLen-iRemain;//总数据-被打包的数据长度和封装长度=未打包数据长度+未用封装缓存长度再减iRemain=未打包数据长度
-        iPutFrameLen=tFileFrameInfo.iFrameLen;//iPutFrameLen要等于封装对象中缓存的未打包的数据长度，这样内存才够。
+        m_iPutFrameLen=tFileFrameInfo.iFrameLen;//iPutFrameLen要等于封装对象中缓存的未打包的数据长度，这样内存才够。
     }
     m_pbInputBuf->Delete(tFileFrameInfo.iFrameProcessedLen);//
     if(NULL != pbOutBuf)
@@ -195,7 +202,7 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
 	DataBuf * pbOutBuf =NULL;
 	int iRet = -1,iWriteLen=0;
 	int iHeaderLen=0;
-	int iPutFrameLen=0;
+	//int iPutFrameLen=0;
 
     if(NULL == i_pbSrcData || i_iSrcDataLen <= 0)
     {
@@ -269,16 +276,17 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
             continue;
         }
 #endif
-        iPutFrameLen+=tFileFrameInfo.iFrameLen;
+        printf("iPutFrameLen %d iFrameLen %d eFrameType[%d] eEncType[%d]\r\n",m_iPutFrameLen,tFileFrameInfo.iFrameLen,tFileFrameInfo.eFrameType,tFileFrameInfo.eEncType);
+        m_iPutFrameLen+=tFileFrameInfo.iFrameLen;
         if(NULL == pbOutBuf)
         {//如果每次都传入一个足够大的缓存，则不需要统计 iPutFrameLen这么麻烦
-            pbOutBuf = new DataBuf(iPutFrameLen+MEDIA_FORMAT_MAX_LEN);//但是每次(帧)都这么大的缓存，如果不能及时释放则内存容易耗尽
+            pbOutBuf = new DataBuf(m_iPutFrameLen+MEDIA_FORMAT_MAX_LEN);//但是每次(帧)都这么大的缓存，如果不能及时释放则内存容易耗尽
         }
         iWriteLen = m_oMediaHandle.FrameToContainer(&tFileFrameInfo,i_eDstStreamType,pbOutBuf->pbBuf,pbOutBuf->iBufMaxLen,&iHeaderLen);
         if(iWriteLen < 0)
         {
             printf("FrameToContainer err iWriteLen %d iFrameProcessedLen[%d]\r\n",iWriteLen,tFileFrameInfo.iFrameProcessedLen);
-            iPutFrameLen=0;
+            m_iPutFrameLen=0;
             break;
         }
         if(iWriteLen == 0)
@@ -290,13 +298,13 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
             }//如果每次都传入一个足够大的缓存，则不需要这么麻烦
             continue;
         }
-        printf("FrameToContainer iPutFrameLen %d iWriteLen %d iFrameProcessedLen[%d]\r\n",iPutFrameLen,iWriteLen,tFileFrameInfo.iFrameProcessedLen);
+        printf("FrameToContainer iPutFrameLen %d iWriteLen %d ProcessedLen[%d] iBufMaxLen[%d]\r\n",m_iPutFrameLen,iWriteLen,tFileFrameInfo.iFrameProcessedLen,pbOutBuf->iBufMaxLen);
         pbOutBuf->iBufLen=iWriteLen;
         m_pDataBufList.push_back(pbOutBuf);
         pbOutBuf = NULL;
         //int iRemain = MEDIA_FORMAT_MAX_LEN - (iWriteLen-iPutFrameLen);//没用到的封装缓存长度
         //iPutFrameLen=pbOutBuf->iBufMaxLen-iWriteLen-iRemain;//总数据-被打包的数据长度和封装长度=未打包数据长度+未用封装缓存长度再减iRemain=未打包数据长度
-        iPutFrameLen=tFileFrameInfo.iFrameLen;//iPutFrameLen要等于封装对象中缓存的未打包的数据长度，这样内存才够。
+        m_iPutFrameLen=tFileFrameInfo.iFrameLen;//iPutFrameLen要等于封装对象中缓存的未打包的数据长度，这样内存才够。
     }//gop类打包(mp4)，最新的i帧不会被打包是下次打包，最新的帧长度= 封装对象中缓存的未打包的数据长度
     m_pbInputBuf->Delete(tFileFrameInfo.iFrameProcessedLen);
     if(NULL != pbOutBuf)
@@ -333,6 +341,7 @@ int MediaConvert::GetData(unsigned char * o_pbData,int i_iMaxDataLen)
         if(it->iBufLen > i_iMaxDataLen)
         {
             printf("GetData err %d,%d\r\n",it->iBufLen, i_iMaxDataLen);
+            iRet = -1;
         }
         else
         {
@@ -341,6 +350,10 @@ int MediaConvert::GetData(unsigned char * o_pbData,int i_iMaxDataLen)
             delete it;
             m_pDataBufList.pop_front();
         }
+    }
+    else
+    {
+        iRet = 0;
     }
     return iRet;
 }
@@ -454,7 +467,7 @@ int MediaConvert::AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame)
         }
         case MEDIA_ENCODE_TYPE_AAC:
         {
-            printf("already acc,no need convert %d\r\n",m_pbAudioFrame->iFrameLen);
+            printf("already aac,no need convert %d\r\n",m_pbAudioFrame->iFrameLen);
             return m_pbAudioFrame->iFrameLen;
         }
         default :
@@ -475,9 +488,10 @@ int MediaConvert::AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame)
     iRet = m_pAudioCodec->Transcode(m_pbAudioFrame->pbFrameStartPos,m_pbAudioFrame->iFrameLen,i_tSrcCodecParam,m_pAudioTranscodeBuf,MEDIA_FORMAT_MAX_LEN,i_tDstCodecParam);
     if(iRet <= 0)
     {
-        printf("Transcode iRet %d iFrameLen%d\r\n",iRet,m_pbAudioFrame->iFrameLen);
+        //printf("Transcode iRet %d iFrameLen%d\r\n",iRet,m_pbAudioFrame->iFrameLen);
         return iRet;
     } 
+    //printf("Transcode iRet %d iFrameLen%d\r\n",iRet,m_pbAudioFrame->iFrameLen);
     iWriteLen=iRet;
     iRet=0;
     do
@@ -662,7 +676,8 @@ int MediaConvert::PriToMedia(FRAME_INFO * i_pFrame,T_MediaFrameInfo *o_ptMediaFr
         }
         default :
         {
-            printf("PriToMedia i_ptFrame->eEncType err %d\r\n",i_pFrame->nEncodeType);
+            if (i_pFrame->nType != FRAME_TYPE_DATA)
+                printf("PriToMedia i_ptFrame->eEncType err %d,nType %d,nSubType %d\r\n",i_pFrame->nEncodeType,i_pFrame->nType,i_pFrame->nSubType);
             return iRet;
         }
     }
@@ -1184,28 +1199,28 @@ int InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const char *i_strSrc
     E_StreamType eDstStreamType=STREAM_TYPE_UNKNOW;
     E_MediaEncodeType eSrcEncType=MEDIA_ENCODE_TYPE_UNKNOW;
 
-    if(NULL != strstr(i_strDstName,".ts"))
+    if(NULL != strstr(i_strDstName,"ts"))
     {
         eDstStreamType=STREAM_TYPE_TS_STREAM;
     }
-    else if(NULL != strstr(i_strDstName,".mp4"))
+    else if(NULL != strstr(i_strDstName,"mp4"))
     {
         eDstStreamType=STREAM_TYPE_FMP4_STREAM;
     }
-    else if(NULL != strstr(i_strDstName,".flv"))
+    else if(NULL != strstr(i_strDstName,"flv"))
     {
         eDstStreamType=STREAM_TYPE_ENHANCED_FLV_STREAM;
     }
-    else if(NULL != strstr(i_strDstName,".VideoRaw"))
+    else if(NULL != strstr(i_strDstName,"VideoRaw"))
     {
         eDstStreamType=STREAM_TYPE_VIDEO_STREAM;
     }
-    else if(NULL != strstr(i_strDstName,".AudioRaw"))
+    else if(NULL != strstr(i_strDstName,"AudioRaw"))
     {
         eDstStreamType=STREAM_TYPE_AUDIO_STREAM;
     }
 #ifdef SUPPORT_PRI
-    else if(NULL != strstr(i_strDstName,".pri"))
+    else if(NULL != strstr(i_strDstName,"pri"))
     {
         eDstStreamType=STREAM_TYPE_UNKNOW;
     }
@@ -1215,10 +1230,11 @@ int InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const char *i_strSrc
         printf("i_strDstName %s err\r\n",i_strDstName);
         return -1;
     }
-    if(NULL != strstr(i_strSrcName,".pri"))
+
+    if(NULL != strstr(i_strSrcName,"pri"))
     {
 #ifdef SUPPORT_PRI
-        printf("Convert %s to %s\r\n",i_strSrcName,i_strDstName);
+        //printf("Convert %s to %s\r\n",i_strSrcName,i_strDstName);
         return MediaConvert::Instance()->ConvertFromPri(i_pbSrcData,i_iSrcDataLen,eDstStreamType);
 #else
         printf("Convert %s to %s unsupport\r\n",i_strSrcName,i_strDstName);
@@ -1226,21 +1242,21 @@ int InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const char *i_strSrc
 #endif    
     }
 
-    if(NULL != strstr(i_strSrcName,".flv"))
+    if(NULL != strstr(i_strSrcName,"flv"))
     {
         eSrcStreamType=STREAM_TYPE_FLV_STREAM;
     }
-    else if(NULL != strstr(i_strSrcName,".h264"))
+    else if(NULL != strstr(i_strSrcName,"h264"))
     {
         eSrcStreamType=STREAM_TYPE_VIDEO_STREAM;
         eSrcEncType=MEDIA_ENCODE_TYPE_H264;
     }
-    else if(NULL != strstr(i_strSrcName,".h265"))
+    else if(NULL != strstr(i_strSrcName,"h265"))
     {
         eSrcStreamType=STREAM_TYPE_VIDEO_STREAM;
         eSrcEncType=MEDIA_ENCODE_TYPE_H265;
     }
-    else if(NULL != strstr(i_strSrcName,".aac"))
+    else if(NULL != strstr(i_strSrcName,"aac"))
     {
         eSrcStreamType=STREAM_TYPE_AUDIO_STREAM;
         eSrcEncType=MEDIA_ENCODE_TYPE_AAC;
@@ -1290,5 +1306,25 @@ mp4返回一个gop
 int GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoEncBufLen,unsigned char * o_pbAudioEncBuf,int i_iMaxAudioEncBufLen)
 {
     return MediaConvert::Instance()->GetEncodeType(o_pbVideoEncBuf,i_iMaxVideoEncBufLen,o_pbAudioEncBuf,i_iMaxAudioEncBufLen);
+}
+
+
+/*****************************************************************************
+-Fuction        : Clean
+-Description    : 清除缓存数据，重新开始转换
+-Input          : 
+-Output         : 
+-Return         : 
+* Modify Date     Version             Author           Modification
+* -----------------------------------------------
+* 2020/01/01      V1.0.0              Yu Weifeng       Created
+******************************************************************************/
+int Clean()
+{
+    if(NULL != MediaConvert::m_pInstance)
+    {
+        delete MediaConvert::m_pInstance;
+    }
+    MediaConvert::m_pInstance = new MediaConvert();
 }
 
