@@ -94,7 +94,7 @@ int CodecAAC::InitEncode(T_AudioCodecParam i_tSrcCodecParam)
         return iRet;
     }
     memcpy(&m_tEncCodecParam,&i_tSrcCodecParam,sizeof(T_AudioCodecParam));
-    AC_LOGD("InitEncode %d %d %d \n", i_tSrcCodecParam.dwBitsPerSample, i_tSrcCodecParam.dwChannels, i_tSrcCodecParam.dwSampleRate);
+    AC_LOGW("InitEncode %d %d %d \n", i_tSrcCodecParam.dwBitsPerSample, i_tSrcCodecParam.dwChannels, i_tSrcCodecParam.dwSampleRate);
     switch (i_tSrcCodecParam.dwChannels) 
     {
         case 1: eChannelMode = MODE_1;       break;
