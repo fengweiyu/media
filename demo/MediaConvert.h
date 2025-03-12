@@ -119,6 +119,7 @@ public:
 
     static MediaConvert *m_pInstance;
 private:
+    int SynchronizerAudioVideo(T_MediaFrameInfo * i_ptFrameInfo);
     int AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame);
 
     int SetH264NaluData(unsigned char i_bNaluType,unsigned char i_bStartCodeLen,unsigned char *i_pbNaluData,int i_iNaluDataLen,T_MediaFrameInfo *m_ptFrame);
@@ -140,6 +141,10 @@ private:
     AudioCodec * m_pAudioCodec;
     unsigned char * m_pAudioTranscodeBuf;
     
+    unsigned int m_dwLastAudioTimeStamp;
+    unsigned int m_dwLastVideoTimeStamp;
+    unsigned int m_dwVideoTimeStamp;
+    unsigned int m_dwAudioTimeStamp;
 };
 EM_EXPORT_API(int) InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const char *i_strSrcName,const char *i_strDstName);
 EM_EXPORT_API(int) GetData(unsigned char * o_pbData,int i_iMaxDataLen);

@@ -40,6 +40,10 @@ MediaConvert:: MediaConvert()
     m_pAudioCodec = new AudioCodec();
     m_pAudioTranscodeBuf = new unsigned char [MEDIA_FORMAT_MAX_LEN];
     m_iPutFrameLen=0;
+    m_dwLastAudioTimeStamp=0;
+    m_dwLastVideoTimeStamp=0;
+    m_dwVideoTimeStamp = 0;
+    m_dwAudioTimeStamp = 0;
 }
 /*****************************************************************************
 -Fuction        : MediaConvert
@@ -129,6 +133,7 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
             //printf("PriToMedia err%d\r\n",pFrame->nEncodeType);
             continue;
         }
+        SynchronizerAudioVideo(&tFileFrameInfo);
         if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME ||
         tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_P_FRAME ||
         tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_B_FRAME)
@@ -430,6 +435,83 @@ int MediaConvert::GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoE
 }
 
 /*****************************************************************************
+-Fuction		: SynchronizerAudioVideo
+-Description    : 如果音视频不同步，可能会导致播放器跳帧
+比如ffplay对于落后音频帧很多时间的视频帧 会直接丢掉，造成跳帧(只播i帧现象)
+// 音视频同步策略
+// 当音频时间超过视频时间时，丢掉音频数据(如果同步音频时间会造成视频间隔不均匀(偶尔跳秒))
+// 1.音视频同步策略
+// 当音频时间落后(500ms)后，同步视频时间（因音频时间超过视频时间时会丢弃，所以不存在音频时间超前问题）
+// 2.音视频同步策略
+// 当视频时间超过音频时间，同步音频时间(会差几十ms)
+-Input			:
+-Output 		:
+-Return 		:
+* Modify Date	  Version		 Author 		  Modification
+* -----------------------------------------------
+* 2024/09/26	  V1.0.0		 Yu Weifeng 	  Created
+******************************************************************************/
+int MediaConvert::SynchronizerAudioVideo(T_MediaFrameInfo * i_ptFrameInfo)
+{
+    int iRet = -1;
+    unsigned int dwTimeStamp = 0;
+    
+    if(NULL == i_ptFrameInfo)
+    {
+        printf("SynchronizerAudioVideo NULL %d\r\n",iRet);
+        return iRet;
+    }
+    
+    dwTimeStamp = i_ptFrameInfo->dwTimeStamp;    // 使用到达时间戳流畅且有实时性(使用帧时间戳会跳秒)
+    if (i_ptFrameInfo->eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME ||
+    i_ptFrameInfo->eFrameType == MEDIA_FRAME_TYPE_VIDEO_P_FRAME ||
+    i_ptFrameInfo->eFrameType == MEDIA_FRAME_TYPE_VIDEO_B_FRAME)
+    {// i_pFrame->nTimeStamp;//音视频时钟不同源96                                           
+        if (0 == m_dwLastVideoTimeStamp)
+        {
+            m_dwLastVideoTimeStamp = dwTimeStamp;
+        }
+        m_dwVideoTimeStamp += (unsigned int)(dwTimeStamp - m_dwLastVideoTimeStamp);
+
+        if (m_dwVideoTimeStamp < m_dwAudioTimeStamp) // 2.音视频同步策略
+        {// 视频时间超过音频时间，同步音频时间(视频间隔不均匀 会差几十ms)
+            //printf("m_dwVideoTimeStamp %d < m_dwAudioTimeStamp %d \r\n", m_dwVideoTimeStamp, m_dwAudioTimeStamp);
+            m_dwVideoTimeStamp = m_dwAudioTimeStamp; // ffplay 播放效果可以
+        }// 如果没有这个策略，会出现视频比音频慢，从而导致播放跳秒(ffplay会跳秒)
+
+        m_dwLastVideoTimeStamp = dwTimeStamp;
+        dwTimeStamp = m_dwVideoTimeStamp;
+    }
+    else if (i_ptFrameInfo->eFrameType == MEDIA_FRAME_TYPE_AUDIO_FRAME)
+    {
+        if (0 == m_dwLastAudioTimeStamp)
+        {
+            m_dwLastAudioTimeStamp = dwTimeStamp;
+            m_dwAudioTimeStamp = m_dwVideoTimeStamp; // 音视频同步
+        }
+        m_dwAudioTimeStamp += (unsigned int)(dwTimeStamp - m_dwLastAudioTimeStamp);
+
+        if (m_dwAudioTimeStamp < m_dwVideoTimeStamp) // 1.音视频同步策略
+        {// 当音频时间落后，同步视频时间
+            m_dwAudioTimeStamp = m_dwVideoTimeStamp; // 0.如果只有音频时间戳直接使用视频时间戳的策略，(ffplay)播放效果还可以
+        }// （因音频时间超过视频时间时会丢弃，所以不存在音频时间超前问题）
+        /*if (m_dwAudioTimeStamp > m_dwVideoTimeStamp)// 2.音视频同步策略
+        {// 当音频时间超过视频时间时，丢掉音频数据
+            m_ddwLastAudioTimeStamp =ddwTimeStamp;//(如果同步音频时间会造成视频间隔不均匀(会差几十ms))
+            HTTP_LOGD(this,"m_dwAudioTimeStamp %d > m_dwVideoTimeStamp %d \r\n",m_dwAudioTimeStamp,m_dwVideoTimeStamp);
+            //return iRet;//这里的时间戳基本都大于视频时间戳,如果return就都丢数据了,最多改m_dwAudioTimeStamp =
+        m_dwVideoTimeStamp;
+        }//这里的1和2如果同时启用，和音频时间戳直接使用视频时间戳没区别了*/
+
+        m_dwLastAudioTimeStamp = dwTimeStamp;
+        dwTimeStamp = m_dwAudioTimeStamp;
+    }
+
+    i_ptFrameInfo->dwTimeStamp = dwTimeStamp; //
+    return 0;
+}
+
+/*****************************************************************************
 -Fuction		: AudioTranscode
 -Description	: g711转aac(mse只支持aac)
 -Input			:
@@ -483,7 +565,7 @@ int MediaConvert::AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame)
     i_tSrcCodecParam.eAudioCodecType=eSrcAudioCodecType;
     memcpy(&i_tDstCodecParam,&i_tSrcCodecParam,sizeof(T_AudioCodecParam));
     i_tDstCodecParam.eAudioCodecType=AUDIO_CODEC_TYPE_AAC;
-    //i_tDstCodecParam.dwSampleRate=44100;
+    i_tDstCodecParam.dwSampleRate=44100;//采样率要转换，否则web端无法支持
 
     iRet = m_pAudioCodec->Transcode(m_pbAudioFrame->pbFrameStartPos,m_pbAudioFrame->iFrameLen,i_tSrcCodecParam,m_pAudioTranscodeBuf,MEDIA_FORMAT_MAX_LEN,i_tDstCodecParam);
     if(iRet <= 0)
@@ -1326,5 +1408,6 @@ int Clean()
         delete MediaConvert::m_pInstance;
     }
     MediaConvert::m_pInstance = new MediaConvert();
+    return 0;
 }
 
