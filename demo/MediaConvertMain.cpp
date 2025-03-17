@@ -16,6 +16,7 @@
 #include "MediaConvert.h"
 
 #define MEDIA_BUF_FORMAT_MAX_LEN	(10*1024*1024) 
+#define MEDIA_BUF_CHUNK_LEN	(16352) 
 
 static int proc(const char * i_strSrcFilePath,const char *i_strDstFilePath);
 static void PrintUsage(char *i_strProcName);
@@ -116,7 +117,7 @@ static int proc(const char * i_strSrcFilePath,const char *i_strDstFilePath)
 {
     unsigned char * pbSrcFileBuf=NULL;
     unsigned char * pbFileBuf=NULL;
-	int iRet = -1,iReadLen = -1,iWriteLen=0;
+	int iRet = -1,iReadLen = -1,iWriteLen=0,iPutLen=0,iOffsetLen=0;
 	int iMaxLen=0;
     FILE *pDstFile=NULL;  
 
@@ -127,30 +128,35 @@ static int proc(const char * i_strSrcFilePath,const char *i_strDstFilePath)
         printf("ReadFile err %s\r\n",i_strSrcFilePath);
         return iRet;
     } 
+    iMaxLen=iReadLen+MEDIA_BUF_FORMAT_MAX_LEN;
+    pbFileBuf = new unsigned char [iMaxLen];
+    if(NULL == pbFileBuf)
+    {
+        printf("NULL == pbFileBuf err\r\n");
+        return iRet;
+    } 
+    iWriteLen=0;
     do
     {
-        iRet=InputData(pbSrcFileBuf,iReadLen,i_strSrcFilePath,i_strDstFilePath);
+        iPutLen=iReadLen-iOffsetLen>=MEDIA_BUF_CHUNK_LEN?MEDIA_BUF_CHUNK_LEN : iReadLen-iOffsetLen;
+        iRet=InputData(pbSrcFileBuf+iOffsetLen,iPutLen,i_strSrcFilePath,i_strDstFilePath);
         if(iRet <= 0)
         {
-            printf("InputData err %s %s\r\n",i_strSrcFilePath,i_strDstFilePath);
-            //break;
+            printf("InputData err %s %s,%d %d\r\n",i_strSrcFilePath,i_strDstFilePath,iOffsetLen,iPutLen);
+            iOffsetLen+=iPutLen;
+            continue;
         } 
-        iMaxLen=iReadLen+MEDIA_BUF_FORMAT_MAX_LEN;
-        pbFileBuf = new unsigned char [iMaxLen];
-        if(NULL == pbFileBuf)
-        {
-            printf("NULL == pbFileBuf err\r\n");
-            break;
-        } 
-        iWriteLen=0;
         iRet=0;
         do
         {
             iWriteLen+=iRet;
             iRet=GetData(pbFileBuf+iWriteLen,iMaxLen-iWriteLen);
         } while(iRet>0);
-
-        
+        iOffsetLen+=iPutLen;
+    }while(iOffsetLen<iReadLen);
+    
+    do
+    {
         pDstFile = fopen(i_strDstFilePath,"wb");//
         if(NULL == pDstFile)
         {
@@ -164,7 +170,6 @@ static int proc(const char * i_strSrcFilePath,const char *i_strDstFilePath)
             break;
         }
     }while(0);
-    
     if(NULL != pbFileBuf)
     {
         delete [] pbFileBuf;

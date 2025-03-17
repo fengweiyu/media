@@ -135,6 +135,9 @@ private:
     MediaHandle m_oMediaHandle;
     DataBuf * m_pbInputBuf;
 	int m_iPutFrameLen;
+	int m_iPutFrameCnt;
+    unsigned int m_dwPutFrameTime;//ms
+    T_MediaFrameInfo m_tFileFrameInfo;//video 的sps等参数集会被tag分段，故要保存
     E_MediaEncodeType m_eDstVideoEncType;
     E_MediaEncodeType m_eDstAudioEncType;
     list<DataBuf *> m_pDataBufList;
