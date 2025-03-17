@@ -157,7 +157,7 @@ int TsInterface::GetFrame(T_MediaFrameInfo *m_ptFrame)
 * -----------------------------------------------
 * 2023/09/21      V1.0.0         Yu Weifeng       Created
 ******************************************************************************/
-int TsInterface::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eStreamType,unsigned char * o_pbBuf, unsigned int i_dwMaxBufLen,int *o_piHeaderOffset)
+int TsInterface::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eStreamType,unsigned char * o_pbBuf, unsigned int i_dwMaxBufLen,int *o_piHeaderOffset,int i_iForcePack)
 {
     int iRet=FALSE;
     int iEnhancedFlvFlag=0;

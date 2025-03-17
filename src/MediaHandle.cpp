@@ -469,7 +469,7 @@ int MediaHandle::GetFrame(T_MediaFrameInfo *m_ptFrame)
 * -----------------------------------------------
 * 2017/09/21	  V1.0.0		 Yu Weifeng 	  Created
 ******************************************************************************/
-int MediaHandle::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eStreamType,unsigned char * o_pbBuf, unsigned int i_dwMaxBufLen,int *o_piHeaderOffset)
+int MediaHandle::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eStreamType,unsigned char * o_pbBuf, unsigned int i_dwMaxBufLen,int *o_piHeaderOffset,int i_iForcePack)
 {
     int iRet=FALSE;
     int iWriteLen = 0;
@@ -555,7 +555,7 @@ int MediaHandle::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eSt
     }
     if(NULL != m_pMediaPackHandle)
     {
-        iRet = m_pMediaPackHandle->FrameToContainer(i_ptFrame,i_eStreamType,o_pbBuf,i_dwMaxBufLen,o_piHeaderOffset);
+        iRet = m_pMediaPackHandle->FrameToContainer(i_ptFrame,i_eStreamType,o_pbBuf,i_dwMaxBufLen,o_piHeaderOffset,i_iForcePack);
     }
 
     if(iRet < 0)
