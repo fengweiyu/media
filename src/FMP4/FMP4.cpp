@@ -2778,7 +2778,7 @@ public:
         
         if(NULL == i_ptTrack ||NULL == i_ptTrack->aptSampleInfo)
         {
-            FMP4_LOGE("FMP4TrafBox SetParams err %p\r\n",i_ptTrack);
+            FMP4_LOGE("FMP4TrafBox SetParams err %p,%p\r\n",i_ptTrack,i_ptTrack->aptSampleInfo);
             return -1;
         }
         dwFlags = FMP4TfhdBox::FMP4_TFHD_FLAG_DEFAULT_FLAGS;
@@ -3317,9 +3317,9 @@ int FMP4::CreateHeader(list<T_Fmp4FrameInfo> * i_pFMP4Media,unsigned char *o_pbB
 /*****************************************************************************
 -Fuction        : CreateSegment
 -Description    : 为了计算持续时间，i_pFMP4Media中最后一帧不打包，
--Input          : 
+-Input          : i_pFMP4Media 中至少要有两个视频帧数据
 -Output         : 
--Return         : -1 err >0 len
+-Return         : -1 err ，>0 len
 * Modify Date     Version        Author           Modification
 * -----------------------------------------------
 * 2023/09/21      V1.0.0         Yu Weifeng       Created
@@ -3372,6 +3372,18 @@ int FMP4::CreateSegment(list<T_Fmp4FrameInfo> * i_pFMP4Media,unsigned int i_dwSe
             dwAudioSampleCount++;
         }
     }
+    if(dwVideoSampleCount<=1)
+    {//由于持续时间设置的要求，至少要有两帧视频
+        FMP4_LOGE("err,seg Video cnt err %d,%d\r\n",dwVideoSampleCount,dwTrackCnt);
+        return iRet;
+    }
+    if(dwAudioSampleCount<=1 && dwTrackCnt>1)
+    {//由于持续时间设置的要求，至少要有两帧音频，否则则认为没有音频
+        FMP4_LOGW("warn,seg no audio %d\r\n",dwTrackCnt);
+        dwTrackCnt--;
+    }
+    //FMP4_LOGD("dwTrackCnt %d ,Video %d Audio %d\r\n",dwTrackCnt,dwVideoSampleCount,dwAudioSampleCount);
+    
     aptVideoSampleInfo = (T_FMP4SampleInfo *)malloc(dwVideoSampleCount*sizeof(T_FMP4SampleInfo));
     if(NULL == aptVideoSampleInfo)
     {
@@ -3482,11 +3494,6 @@ int FMP4::CreateSegment(list<T_Fmp4FrameInfo> * i_pFMP4Media,unsigned int i_dwSe
         }
     }
     
-    if(dwAudioSampleCount==0 && dwTrackCnt>1)
-    {
-        FMP4_LOGE("warn,seg no audio %d\r\n",dwTrackCnt);
-        dwTrackCnt--;
-    }
     for(i=0;i<(int)dwTrackCnt;i++)
     {
         if(0 == i && dwVideoSampleCount>1)

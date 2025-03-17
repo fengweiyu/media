@@ -22,7 +22,7 @@ using std::string;
 using std::list;
 using std::map;
 
-#if 1
+#if 0
 #define  FMP4_LOGW     MH_LOGW
 #define  FMP4_LOGE     MH_LOGE
 #define  FMP4_LOGD     MH_LOGD

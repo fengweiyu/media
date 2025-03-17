@@ -141,7 +141,7 @@ int FMP4HandleInterface::GetFrame(T_MediaFrameInfo *m_ptFrame)
 * -----------------------------------------------
 * 2023/09/21      V1.0.0         Yu Weifeng       Created
 ******************************************************************************/
-int FMP4HandleInterface::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eStreamType,unsigned char * o_pbBuf, unsigned int i_dwMaxBufLen,int *o_piHeaderOffset)
+int FMP4HandleInterface::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eStreamType,unsigned char * o_pbBuf, unsigned int i_dwMaxBufLen,int *o_piHeaderOffset,int i_iForcePack)
 {
     int iRet=FALSE;
     T_Fmp4AnnexbFrameInfo tFmp4FrameInfo;
@@ -228,7 +228,7 @@ int FMP4HandleInterface::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamTy
     tFmp4FrameInfo.tAudioEncParam.dwChannels= i_ptFrame->tAudioEncodeParam.dwChannels;
     tFmp4FrameInfo.tAudioEncParam.dwBitsPerSample= i_ptFrame->tAudioEncodeParam.dwBitsPerSample;
     
-    return m_FMP4Handle.GetMuxData(&tFmp4FrameInfo,o_pbBuf,i_dwMaxBufLen,o_piHeaderOffset);
+    return m_FMP4Handle.GetMuxData(&tFmp4FrameInfo,o_pbBuf,i_dwMaxBufLen,o_piHeaderOffset,i_iForcePack);
 }
 
 

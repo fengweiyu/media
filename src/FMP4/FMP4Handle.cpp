@@ -66,7 +66,8 @@ FMP4Handle::~FMP4Handle()
 {
     if(m_FMP4MediaList.size()>0)
     {
-        DelAllFrame();
+        m_FMP4MediaList.clear();//清空list
+        m_iCurMediaDataLen = 0;
     }
     if(NULL != m_pbMediaData)
     {
@@ -102,7 +103,9 @@ int FMP4Handle::GetMuxData(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo,unsigned cha
 
     if(NULL == i_ptFmp4FrameInfo || 0 != i_iForcePack)
     {
-        FMP4_LOGE("ForceGetMuxData \r\n");
+        FMP4_LOGW("ForceGetMuxData \r\n");
+        if(NULL != i_ptFmp4FrameInfo)
+            SaveFrame(i_ptFmp4FrameInfo);
         return ForceGetMuxData(i_ptFmp4FrameInfo,o_pbBuf,i_dwMaxBufLen,o_piHeaderOffset,i_iForcePack);
     }
     
@@ -122,6 +125,11 @@ int FMP4Handle::GetMuxData(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo,unsigned cha
         if(0==m_iHeaderCreatedFlag)
         {
             m_iFmp4HeaderLen=m_FMP4.CreateHeader(&m_FMP4MediaList,m_pbFmp4Header,FMP4_HEADER_BUF_MAX_LEN);
+            if(m_iFmp4HeaderLen < 0)
+            {
+                FMP4_LOGE("CreateHeader err \r\n");
+                return m_iFmp4HeaderLen;
+            }
             m_iHeaderCreatedFlag=1;
             if(NULL != o_piHeaderOffset)
             {
@@ -130,7 +138,13 @@ int FMP4Handle::GetMuxData(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo,unsigned cha
                 *o_piHeaderOffset = iDataLen;
             }
         }
-        iDataLen+=m_FMP4.CreateSegment(&m_FMP4MediaList,++m_iFragSeq,o_pbBuf+iDataLen,i_dwMaxBufLen-iDataLen);
+        iRet=m_FMP4.CreateSegment(&m_FMP4MediaList,++m_iFragSeq,o_pbBuf+iDataLen,i_dwMaxBufLen-iDataLen);
+        if(iRet < 0)
+        {
+            FMP4_LOGE("CreateSegment err \r\n");
+            return iRet;
+        }
+        iDataLen+=iRet;
         m_ddwSegmentPTS=0;
         m_ddwSegmentDuration=0;
         int64_t m_ddwSegmentMinPTS=0;
@@ -154,8 +168,8 @@ int FMP4Handle::GetMuxData(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo,unsigned cha
         m_ddwSegmentPTS=m_ddwSegmentMinPTS;
         if(m_ddwSegmentMaxPTS-m_ddwSegmentMinPTS>0)
             m_ddwSegmentDuration=(m_ddwSegmentMaxPTS-m_ddwSegmentMinPTS);
-        DelAllFrame();
-        SaveFrame(i_ptFmp4FrameInfo);
+        DelAllFrameWithoutLastVideoFrame();
+        //SaveFrame(i_ptFmp4FrameInfo);
     }
     if(i_ptFmp4FrameInfo->eFrameType==FMP4_VIDEO_KEY_FRAME)
     {
@@ -188,6 +202,11 @@ int FMP4Handle::ForceGetMuxData(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo,unsigne
         if(0==m_iHeaderCreatedFlag)
         {
             m_iFmp4HeaderLen=m_FMP4.CreateHeader(&m_FMP4MediaList,m_pbFmp4Header,FMP4_HEADER_BUF_MAX_LEN);
+            if(m_iFmp4HeaderLen < 0)
+            {
+                FMP4_LOGE("ForceGetMuxData CreateHeader err \r\n");
+                return m_iFmp4HeaderLen;
+            }
             m_iHeaderCreatedFlag=1;
             if(NULL != o_piHeaderOffset)
             {
@@ -196,7 +215,13 @@ int FMP4Handle::ForceGetMuxData(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo,unsigne
                 *o_piHeaderOffset = iDataLen;
             }
         }
-        iDataLen+=m_FMP4.CreateSegment(&m_FMP4MediaList,++m_iFragSeq,o_pbBuf+iDataLen,i_dwMaxBufLen-iDataLen);
+        iRet=m_FMP4.CreateSegment(&m_FMP4MediaList,++m_iFragSeq,o_pbBuf+iDataLen,i_dwMaxBufLen-iDataLen);
+        if(iRet < 0)
+        {
+            FMP4_LOGE("ForceGetMuxData CreateSegment err \r\n");
+            return iRet;
+        }
+        iDataLen+=iRet;
         m_ddwSegmentPTS=0;
         m_ddwSegmentDuration=0;
         int64_t m_ddwSegmentMinPTS=0;
@@ -209,7 +234,8 @@ int FMP4Handle::ForceGetMuxData(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo,unsigne
         m_ddwSegmentPTS=m_ddwSegmentMinPTS;
         if(m_ddwSegmentMaxPTS-m_ddwSegmentMinPTS>0)
             m_ddwSegmentDuration=(m_ddwSegmentMaxPTS-m_ddwSegmentMinPTS);
-        DelAllFrame();
+        DelAllFrameWithoutLastVideoFrame();
+        //SaveFrame(i_ptFmp4FrameInfo);
     }
     return iDataLen;
 }
@@ -403,8 +429,11 @@ int FMP4Handle::SaveFrame(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo)
 
 
 /*****************************************************************************
--Fuction        : FMP4Handle
--Description    : demux muxer
+-Fuction        : DelAllFrameWithoutLastVideoFrame
+-Description    : 为了计算每帧的持续时间，最后一帧不会打包进去所以要保留
+音频最后一帧可用上一帧的持续时间，相差不大，无啥影响
+视频最后一帧的持续时间无法计算，为了准确也无法用上一视频帧的持续时间
+    所以要保留到下次打包再进行准确计算
 -Input          : 
 -Output         : 
 -Return         : 
@@ -412,10 +441,37 @@ int FMP4Handle::SaveFrame(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo)
 * -----------------------------------------------
 * 2023/09/21      V1.0.0         Yu Weifeng       Created
 ******************************************************************************/
-int FMP4Handle::DelAllFrame()
+int FMP4Handle::DelAllFrameWithoutLastVideoFrame()
 {
+    T_Fmp4FrameInfo tFmp4FrameInfo;
+
+    memset(&tFmp4FrameInfo,0,sizeof(T_Fmp4FrameInfo));
+    for (auto iter = m_FMP4MediaList.rbegin(); iter != m_FMP4MediaList.rend();)
+    {
+        if (FMP4_VIDEO_KEY_FRAME == iter->eFrameType||FMP4_VIDEO_INNER_FRAME == iter->eFrameType)
+        {
+            memcpy(&tFmp4FrameInfo,&(*iter),sizeof(T_Fmp4FrameInfo));
+            break;
+        }
+        iter++; // 继续遍历下一个元素
+    }
+    if(NULL != tFmp4FrameInfo.pbFrameStartPos)
+    {
+        if(tFmp4FrameInfo.pbFrameStartPos != m_pbMediaData)
+            memmove(m_pbMediaData,tFmp4FrameInfo.pbFrameStartPos,tFmp4FrameInfo.iFrameLen);
+        m_iCurMediaDataLen = tFmp4FrameInfo.iFrameLen;
+        tFmp4FrameInfo.pbFrameStartPos=m_pbMediaData;
+    }
+    else
+    {
+        m_iCurMediaDataLen = 0;
+    }
+    
     m_FMP4MediaList.clear();
-    m_iCurMediaDataLen = 0;
+    if(NULL != tFmp4FrameInfo.pbFrameStartPos)
+    {
+        m_FMP4MediaList.push_back(tFmp4FrameInfo);
+    }
     return 0;
 }
 
@@ -793,7 +849,7 @@ int FMP4Handle::SpsToH265Extradata(unsigned char *i_pbSpsData,unsigned short i_w
     
     if(NULL == i_pbSpsData || NULL == o_ptH265Extradata || 0 >= i_wSpsLen)
     {
-        FMP4_LOGE("SpsToH265Extradata NULL %d \r\n", i_wSpsLen);
+        FMP4_LOGE("FMP4Handle SpsToH265Extradata NULL %d \r\n", i_wSpsLen);
         return iRet;
     }
     memset(abSodbSPS,0,sizeof(abSodbSPS));
