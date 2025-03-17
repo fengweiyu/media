@@ -159,13 +159,13 @@ int FlvHandleInterface::GetFrame(T_MediaFrameInfo *m_ptFrame)
         if(iRet <= 0)
         {
             MH_LOGE("m_pFlvHandle->GetFrameData err %d %d\r\n",iProcessedLen,iRet);
-            return -1;
+            break;//iRet < 0 ,iProcessedLen 也可能大于0，因为这里是循环
         }
         iProcessedLen+=iRet;
         iRemainDataLen-=iRet;
     }while(iRemainDataLen>0&&0==m_ptFrame->iFrameLen);
         
-	if(0 != m_ptFrame->iFrameLen)
+	if(iProcessedLen>0)//if(0 != m_ptFrame->iFrameLen)
 	{
         m_ptFrame->iFrameProcessedLen += iProcessedLen;
 	}
@@ -182,7 +182,7 @@ int FlvHandleInterface::GetFrame(T_MediaFrameInfo *m_ptFrame)
 * -----------------------------------------------
 * 2023/09/21      V1.0.0         Yu Weifeng       Created
 ******************************************************************************/
-int FlvHandleInterface::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eStreamType,unsigned char * o_pbBuf, unsigned int i_dwMaxBufLen,int *o_piHeaderOffset)
+int FlvHandleInterface::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eStreamType,unsigned char * o_pbBuf, unsigned int i_dwMaxBufLen,int *o_piHeaderOffset,int i_iForcePack)
 {
     int iRet=FALSE;
     int iEnhancedFlvFlag=0;

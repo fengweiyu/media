@@ -109,7 +109,7 @@ int FlvParseHandle::GetFrameData(int i_iDataOffset,T_MediaFrameInfo *m_ptFrame)
         MH_LOGE("FlvReadTag err %d\r\n",iRet);
         return iRet;
     }
-    iProcessedLen+=iRet;
+    iProcessedLen+=iRet;//包括整个tag的长度，tag header+body //解析出一个tag才可跳过
     switch(tFlvTag.tTagHeader.bType)
     {
         case FLV_TAG_VIDEO_TYPE :
@@ -122,7 +122,7 @@ int FlvParseHandle::GetFrameData(int i_iDataOffset,T_MediaFrameInfo *m_ptFrame)
             }
             else if(iRet == 0)
             {
-                MH_LOGD("GetVideoData need more data %d \r\n",iRet);
+                MH_LOGD("GetVideoData need more data %d \r\n",iRet);//当前tag不含视频数据，处理并跳过该tag处理下一个
             }
             else
             {
@@ -919,7 +919,7 @@ int FlvParseHandle::SpsToH264Resolution(unsigned char *i_pbSpsData,unsigned shor
     
     if(NULL == i_pbSpsData || NULL == o_ptH265Extradata || 0 >= i_wSpsLen)
     {
-        MH_LOGE("SpsToH265Extradata NULL %d \r\n", i_wSpsLen);
+        MH_LOGE("SpsToH264Resolution NULL %d \r\n", i_wSpsLen);
         return iRet;
     }
     memset(abSodbSPS,0,sizeof(abSodbSPS));
@@ -1179,7 +1179,7 @@ int FlvParseHandle::ParseFlvTagHeader(unsigned char* i_pbBuf,unsigned int i_dwLe
     if (FLV_TAG_AUDIO_TYPE != o_ptFlvTagHeader->bType && FLV_TAG_VIDEO_TYPE != o_ptFlvTagHeader->bType && 
     FLV_TAG_SCRIPT_TYPE != o_ptFlvTagHeader->bType)
     {
-        MH_LOGE("ParseFlvTagHeader err %d \r\n", o_ptFlvTagHeader->bType);
+        MH_LOGE("ParseFlvTagHeader err TAG_TYPE %d \r\n", o_ptFlvTagHeader->bType);
         return -1;
     }
 

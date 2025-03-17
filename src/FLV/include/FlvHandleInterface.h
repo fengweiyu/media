@@ -43,7 +43,7 @@ public:
     virtual int GetMediaInfo(T_MediaInfo *o_ptMediaInfo);
     
     virtual int GetFrame(T_MediaFrameInfo *m_ptFrame);//
-    virtual int FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eStreamType,unsigned char * o_pbBuf, unsigned int i_dwMaxBufLen,int *o_piHeaderOffset=NULL);//
+    virtual int FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eStreamType,unsigned char * o_pbBuf, unsigned int i_dwMaxBufLen,int *o_piHeaderOffset=NULL,int i_iForcePack=0);//
 
     static char *m_strFormatName;
 private:

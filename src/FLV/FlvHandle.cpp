@@ -79,7 +79,7 @@ int FlvHandle::SpsToH265Extradata(unsigned char *i_pbSpsData,unsigned short i_wS
     
     if(NULL == i_pbSpsData || NULL == o_ptH265Extradata || 0 >= i_wSpsLen)
     {
-        MH_LOGE("SpsToH265Extradata NULL %d \r\n", i_wSpsLen);
+        MH_LOGE("FlvHandle SpsToH265Extradata NULL %d \r\n", i_wSpsLen);
         return iRet;
     }
     memset(abSodbSPS,0,sizeof(abSodbSPS));
