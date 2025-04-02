@@ -172,7 +172,7 @@ int CodecPCM::UpSampleRate(unsigned char * i_abSrcBuf,int i_iSrcBufLen,unsigned 
     {  
         if(i*iDiffSampleRate*sizeof(short)>i_iDstBufMaxLen)
         {
-            AC_LOGE("DownSampleRate err DstBufMaxLen %d %d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
+            AC_LOGE("UpSampleRate err DstBufMaxLen %d ,%d %d\r\n",i_iSrcBufLen,i*iDiffSampleRate*sizeof(short),i_iDstBufMaxLen);
             return iRet;
         }
         pwDstData[iCurSampleCnt] = pwSrcData[i]; // 将每个输入样本复制到输出的相应位置，每隔5个插入一份  ,这里放第一个
