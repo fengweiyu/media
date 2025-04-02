@@ -120,7 +120,7 @@ static int proc(const char * i_strSrcFilePath,const char *i_strDstFilePath)
 	int iRet = -1,iReadLen = -1,iWriteLen=0,iPutLen=0,iOffsetLen=0;
 	int iMaxLen=0;
     FILE *pDstFile=NULL;  
-
+    unsigned char abInfo[80];
 
     iReadLen=ReadFile(i_strSrcFilePath,&pbSrcFileBuf);
     if(iReadLen <= 0)
@@ -143,14 +143,14 @@ static int proc(const char * i_strSrcFilePath,const char *i_strDstFilePath)
         if(iRet <= 0)
         {
             printf("InputData err %s %s,%d %d\r\n",i_strSrcFilePath,i_strDstFilePath,iOffsetLen,iPutLen);
-            iOffsetLen+=iPutLen;
-            continue;
+            //iOffsetLen+=iPutLen;
+            //continue;
         } 
         iRet=0;
         do
         {
             iWriteLen+=iRet;
-            iRet=GetData(pbFileBuf+iWriteLen,iMaxLen-iWriteLen);
+            iRet=GetData(pbFileBuf+iWriteLen,iMaxLen-iWriteLen,abInfo,sizeof(abInfo));
         } while(iRet>0);
         iOffsetLen+=iPutLen;
     }while(iOffsetLen<iReadLen);

@@ -48,6 +48,18 @@ using std::list;
     #endif
 #endif
 
+typedef struct SegInfo
+{
+    int iHaveKeyFrameFlag;//0 否，1是
+    int iSegStartTime;//段开始时间ms
+    int iSegDurationTime;//段持续时间ms
+    int iVideoFrameCnt;//
+    int iAudioFrameCnt;//
+    unsigned int dwStartTimeHigh;//
+    unsigned int dwStartTimeLow;//
+    unsigned int dwStartAbsTime;//
+}T_SegInfo;
+
 /*****************************************************************************
 -Class			: DataBuf
 -Description	: 
@@ -63,6 +75,7 @@ public:
         pbBuf = new unsigned char [i_iBufMaxLen];
         iBufLen = 0;
         iBufMaxLen = i_iBufMaxLen;
+        memset(&tSegInfo,0,sizeof(T_SegInfo));
     }
     virtual ~DataBuf()
     {
@@ -97,6 +110,8 @@ public:
     unsigned char * pbBuf;//只允许只读操作
     int iBufLen;//只允许只读操作
     int iBufMaxLen;
+    
+    T_SegInfo tSegInfo;//
 };
 
 /*****************************************************************************
@@ -114,7 +129,7 @@ public:
     static MediaConvert * Instance();
     int ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_StreamType i_eDstStreamType);
     int Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaEncodeType i_eSrcEncType,E_StreamType i_eSrcStreamType,E_StreamType i_eDstStreamType);
-    int GetData(unsigned char * o_pbData,int i_iMaxDataLen);
+    int GetData(unsigned char * o_pbData,int i_iMaxDataLen,T_SegInfo *o_ptSegInfo);
     int GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoEncBufLen,unsigned char * o_pbAudioEncBuf,int i_iMaxAudioEncBufLen);
 
     static MediaConvert *m_pInstance;
@@ -135,8 +150,10 @@ private:
     MediaHandle m_oMediaHandle;
     DataBuf * m_pbInputBuf;
 	int m_iPutFrameLen;
-	int m_iPutFrameCnt;
-    unsigned int m_dwPutFrameTime;//ms
+	int m_iPutVideoFrameCnt;
+    unsigned int m_dwPutVideoFrameTime;//ms
+    T_SegInfo m_tSegInfo;//
+	int m_iFindKeyFrame;//0 否 ，1是
     T_MediaFrameInfo m_tFileFrameInfo;//video 的sps等参数集会被tag分段，故要保存
     E_MediaEncodeType m_eDstVideoEncType;
     E_MediaEncodeType m_eDstAudioEncType;
@@ -150,7 +167,7 @@ private:
     unsigned int m_dwAudioTimeStamp;
 };
 EM_EXPORT_API(int) InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const char *i_strSrcName,const char *i_strDstName);
-EM_EXPORT_API(int) GetData(unsigned char * o_pbData,int i_iMaxDataLen);
+EM_EXPORT_API(int) GetData(unsigned char * o_pbData,int i_iMaxDataLen,unsigned char * o_pbDataInfo,int i_iMaxInfoLen);
 EM_EXPORT_API(int) GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoEncBufLen,unsigned char * o_pbAudioEncBuf,int i_iMaxAudioEncBufLen);
 EM_EXPORT_API(int)  Clean();
 

@@ -19,6 +19,10 @@
 #define MEDIA_OUTPUT_BUF_MAX_LEN	(2*1024*1024) 
 #define MEDIA_INPUT_BUF_MAX_LEN	(6*1024*1024) 
 
+
+
+
+
 MediaConvert * MediaConvert::m_pInstance = new MediaConvert();//一般使用饿汉模式,懒汉模式线程不安全
 /*****************************************************************************
 -Fuction        : MediaConvert
@@ -44,8 +48,10 @@ MediaConvert:: MediaConvert()
     m_dwLastVideoTimeStamp=0;
     m_dwVideoTimeStamp = 0;
     m_dwAudioTimeStamp = 0;
-    m_dwPutFrameTime=0;
-    m_iPutFrameCnt=0;
+    m_dwPutVideoFrameTime=0;
+    m_iPutVideoFrameCnt=0;
+    m_iFindKeyFrame=0;
+    memset(&m_tSegInfo,0,sizeof(T_SegInfo));
     memset(&m_tFileFrameInfo,0,sizeof(T_MediaFrameInfo));//tVideoEncodeParam
 }
 /*****************************************************************************
@@ -108,17 +114,22 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
 	int iRet = -1,iWriteLen=0;
 	int iHeaderLen=0;
 	//int iPutFrameLen=0;
-
 #ifdef SUPPORT_PRI
     if(NULL == i_pbSrcData || i_iSrcDataLen <= 0)
     {
         printf("Convert NULL == i_pbSrcData err\r\n");
         return iRet;
     } 
+    NSXPTL::FRAME_INFO* pFrame =NULL;
     m_streamer.Inputdata(i_pbSrcData,i_iSrcDataLen);
     while(1)
     {
-        NSXPTL::FRAME_INFO* pFrame = m_streamer.GetNextFrameNoSafe();
+        if(pFrame != NULL)
+        {
+            pFrame->Release();
+            pFrame=NULL;
+        } 
+        pFrame = m_streamer.GetNextFrameNoSafe();
         if(pFrame == NULL)
         {
             //printf("pFrame = NULL ,input pri data not enough [%x,Len %d]\r\n",i_pbSrcData[0],i_iSrcDataLen);
@@ -136,17 +147,32 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
             //printf("PriToMedia err%d\r\n",pFrame->nEncodeType);
             continue;
         }
+        if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME)
+        {
+            m_iFindKeyFrame=1;
+            m_tSegInfo.iHaveKeyFrameFlag=1;
+        }
+        else
+        {
+            if(m_iFindKeyFrame==0)
+                continue;
+        }
         if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME ||
         tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_P_FRAME ||
         tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_B_FRAME)
         {
+            m_tSegInfo.iVideoFrameCnt++;
             m_eDstVideoEncType = tFileFrameInfo.eEncType;
-            m_iPutFrameCnt++;//tFileFrameInfo.dwTimeStamp-m_dwLastVideoTimeStamp 要在SynchronizerAudioVideo前
-            m_dwPutFrameTime+=m_iPutFrameCnt>1?(tFileFrameInfo.dwTimeStamp-m_dwLastVideoTimeStamp):0;
+            m_iPutVideoFrameCnt++;//tFileFrameInfo.dwTimeStamp-m_dwLastVideoTimeStamp 要在SynchronizerAudioVideo前
+            if(m_dwLastVideoTimeStamp != 0)//带音频不能非gop分段，否则出错(web播着会一直卡顿不出流或者只放i帧)
+                m_dwPutVideoFrameTime+=m_iPutVideoFrameCnt>1?(tFileFrameInfo.dwTimeStamp-m_dwLastVideoTimeStamp):0;
+            //m_dwLastVideoTimeStamp = tFileFrameInfo.dwTimeStamp;//调用 SynchronizerAudioVideo则要注释这里
         }
-        SynchronizerAudioVideo(&tFileFrameInfo);
-        if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_AUDIO_FRAME)
+        //if(i_eDstStreamType != STREAM_TYPE_FMP4_STREAM)//
+            SynchronizerAudioVideo(&tFileFrameInfo);//mp4是音频轨和视频轨是分别单独的，所以不需要同源处理,处理了也不影响
+        if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_AUDIO_FRAME)//同时web端对时间戳要求严格，如果同源处理，会不符合帧率/采样率，会导致卡顿跳秒
         {
+            m_tSegInfo.iAudioFrameCnt++;
             if(i_eDstStreamType == STREAM_TYPE_FMP4_STREAM)
             {//mse(mp4)才需要转换
                 if(AudioTranscode(&tFileFrameInfo)<=0)
@@ -156,20 +182,22 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
             }
             m_eDstAudioEncType = tFileFrameInfo.eEncType;
         }
+        //printf("FrameType %d TimeStamp %u PutFrameTime %u FrameLen %d\r\n", tFileFrameInfo.eFrameType, tFileFrameInfo.dwTimeStamp,m_dwPutVideoFrameTime, tFileFrameInfo.iFrameLen);
         if(0 == m_iPutFrameLen)
             printf("start PutFrameLen %d iFrameLen %d eFrameType[%d] eEncType[%d]\r\n",m_iPutFrameLen,tFileFrameInfo.iFrameLen,tFileFrameInfo.eFrameType,tFileFrameInfo.eEncType);
         m_iPutFrameLen+=tFileFrameInfo.iFrameLen;
         if(NULL == pbOutBuf)
         {
             pbOutBuf = new DataBuf(m_iPutFrameLen+MEDIA_FORMAT_MAX_LEN);
-        }
-        iWriteLen = m_oMediaHandle.FrameToContainer(&tFileFrameInfo,i_eDstStreamType,pbOutBuf->pbBuf,pbOutBuf->iBufMaxLen,&iHeaderLen,m_dwPutFrameTime>=600?1:0);
+        }//带音频不能非gop分段，否则出错(web播着会一直卡顿不出流)
+        iWriteLen = m_oMediaHandle.FrameToContainer(&tFileFrameInfo,i_eDstStreamType,pbOutBuf->pbBuf,pbOutBuf->iBufMaxLen,&iHeaderLen,m_dwPutVideoFrameTime>=600?1:0);
         if(iWriteLen < 0)
         {
             printf("!!!FrameToContainer err ,iWriteLen %d iFrameProcessedLen[%d]\r\n",iWriteLen,tFileFrameInfo.iFrameProcessedLen);
             m_iPutFrameLen=0;
-            m_dwPutFrameTime=0;
-            m_iPutFrameCnt=0;
+            m_dwPutVideoFrameTime=0;
+            m_iPutVideoFrameCnt=0;
+            memset(&m_tSegInfo,0,sizeof(T_SegInfo));
             break;
         }
         if(iWriteLen == 0)
@@ -182,15 +210,25 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
             continue;
         }
         if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME)
-            printf("FrameToContainer iPutFrame %d Len %d iWriteLen %d ProcessedLen[%d] iBufMaxLen[%d]\r\n",m_iPutFrameCnt,m_iPutFrameLen,iWriteLen,tFileFrameInfo.iFrameProcessedLen,pbOutBuf->iBufMaxLen);
+            printf("FrameToContainer iPutFrame %d Len %d iWriteLen %d ProcessedLen[%d] iBufMaxLen[%d]\r\n",m_iPutVideoFrameCnt,m_iPutFrameLen,iWriteLen,tFileFrameInfo.iFrameProcessedLen,pbOutBuf->iBufMaxLen);
         pbOutBuf->iBufLen=iWriteLen;
+        m_tSegInfo.iSegDurationTime=tFileFrameInfo.dwTimeStamp-m_tSegInfo.iSegStartTime;
+        memcpy(&pbOutBuf->tSegInfo,&m_tSegInfo,sizeof(T_SegInfo));
         m_pDataBufList.push_back(pbOutBuf);
         pbOutBuf = NULL;
+        memset(&m_tSegInfo,0,sizeof(T_SegInfo));
+        m_tSegInfo.iSegStartTime=tFileFrameInfo.dwTimeStamp;
+        m_tSegInfo.dwStartTimeHigh=(pFrame->nTimeStamp>>32)&0xffffffff;
+        m_tSegInfo.dwStartTimeLow=(pFrame->nTimeStamp)&0xffffffff;
+        m_tSegInfo.dwStartAbsTime=(pFrame->nTimeStamp)/1000;
         //int iRemain = MEDIA_FORMAT_MAX_LEN - (iWriteLen-iPutFrameLen);//没用到的封装缓存长度
         //iPutFrameLen=pbOutBuf->iBufMaxLen-iWriteLen-iRemain;//总数据-被打包的数据长度和封装长度=未打包数据长度+未用封装缓存长度再减iRemain=未打包数据长度
         m_iPutFrameLen=tFileFrameInfo.iFrameLen;//iPutFrameLen要等于封装对象中缓存的未打包的数据长度，这样内存才够。
-        m_dwPutFrameTime=0;
-        m_iPutFrameCnt=0;
+        m_dwPutVideoFrameTime=0;
+        m_iPutVideoFrameCnt=0;
+
+        pFrame->Release();
+        pFrame=NULL;
     }
     //m_pbInputBuf->Delete(tFileFrameInfo.iFrameProcessedLen);//
     if(NULL != pbOutBuf)
@@ -253,20 +291,35 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
         m_pbInputBuf->Delete(tFileFrameInfo.iFrameProcessedLen);//处理了的都要删去，flv每次处理一个tag,不是一帧
         if(tFileFrameInfo.iFrameLen <= 0)
         {
-            printf("tFileFrameInfo.iFrameLen <= 0 [%x,%d,%d]\r\n",i_pbSrcData[0],i_iSrcDataLen,tFileFrameInfo.iFrameProcessedLen);
+            //printf("tFileFrameInfo.iFrameLen <= 0 [%x,%d,%d]\r\n",i_pbSrcData[0],i_iSrcDataLen,tFileFrameInfo.iFrameProcessedLen);
             break;
         } 
+        if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME)
+        {
+            m_iFindKeyFrame=1;
+            m_tSegInfo.iHaveKeyFrameFlag=1;
+        }
+        else
+        {
+            if(m_iFindKeyFrame==0)
+                continue;
+        }
         if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME ||
         tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_P_FRAME ||
         tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_B_FRAME)
         {
+            m_tSegInfo.iVideoFrameCnt++;
             m_eDstVideoEncType = tFileFrameInfo.eEncType;
-            m_iPutFrameCnt++;//tFileFrameInfo.dwTimeStamp-m_dwLastVideoTimeStamp 要在SynchronizerAudioVideo前
-            m_dwPutFrameTime+=m_iPutFrameCnt>1?(tFileFrameInfo.dwTimeStamp-m_dwLastVideoTimeStamp):0;
+            m_iPutVideoFrameCnt++;//tFileFrameInfo.dwTimeStamp-m_dwLastVideoTimeStamp 要在SynchronizerAudioVideo前
+            if(m_dwLastVideoTimeStamp != 0)//带音频不能非gop分段，否则出错(web播着会一直卡顿不出流或者只放i帧)
+                m_dwPutVideoFrameTime+=m_iPutVideoFrameCnt>1?(tFileFrameInfo.dwTimeStamp-m_dwLastVideoTimeStamp):0;
+            //m_dwLastVideoTimeStamp = tFileFrameInfo.dwTimeStamp;//调用 SynchronizerAudioVideo则要注释这里
         }
-        SynchronizerAudioVideo(&tFileFrameInfo);
+        //if(i_eDstStreamType != STREAM_TYPE_FMP4_STREAM)//
+            SynchronizerAudioVideo(&tFileFrameInfo);//mp4是音频轨和视频轨是分别单独的，所以不需要同源处理,处理了也不影响
         if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_AUDIO_FRAME)
         {
+            m_tSegInfo.iAudioFrameCnt++;
             if(i_eDstStreamType == STREAM_TYPE_FMP4_STREAM)
             {//mse(mp4)才需要转换
                 if(AudioTranscode(&tFileFrameInfo)<=0)
@@ -297,20 +350,22 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
             continue;
         }
 #endif
+        //printf("FrameType %d TimeStamp %u PutFrameTime %u FrameLen %d\r\n", tFileFrameInfo.eFrameType, tFileFrameInfo.dwTimeStamp,m_dwPutVideoFrameTime, tFileFrameInfo.iFrameLen);
         if(0 == m_iPutFrameLen)
-            printf("start m_dwPutFrameTime %u ,%d iFrameLen %d eFrameType[%d] eEncType[%d]\r\n",m_dwPutFrameTime,m_pbInputBuf->iBufLen,tFileFrameInfo.iFrameLen,tFileFrameInfo.eFrameType,tFileFrameInfo.eEncType);
+            printf("start m_dwPutVideoFrameTime %u ,%d iFrameLen %d eFrameType[%d] eEncType[%d]\r\n",m_dwPutVideoFrameTime,m_pbInputBuf->iBufLen,tFileFrameInfo.iFrameLen,tFileFrameInfo.eFrameType,tFileFrameInfo.eEncType);
         m_iPutFrameLen+=tFileFrameInfo.iFrameLen;
         if(NULL == pbOutBuf)
         {//如果每次都传入一个足够大的缓存，则不需要统计 iPutFrameLen这么麻烦
             pbOutBuf = new DataBuf(m_iPutFrameLen+MEDIA_FORMAT_MAX_LEN);//但是每次(帧)都这么大的缓存，如果不能及时释放则内存容易耗尽
-        }
-        iWriteLen = m_oMediaHandle.FrameToContainer(&tFileFrameInfo,i_eDstStreamType,pbOutBuf->pbBuf,pbOutBuf->iBufMaxLen,&iHeaderLen,m_dwPutFrameTime>=600?1:0);
+        }//带音频不能非gop分段，否则出错(web播着会一直卡顿不出流)
+        iWriteLen = m_oMediaHandle.FrameToContainer(&tFileFrameInfo,i_eDstStreamType,pbOutBuf->pbBuf,pbOutBuf->iBufMaxLen,&iHeaderLen,m_dwPutVideoFrameTime>=600?1:0);
         if(iWriteLen < 0)
         {
             printf("FrameToContainer err iWriteLen %d iFrameProcessedLen[%d]\r\n",iWriteLen,tFileFrameInfo.iFrameProcessedLen);
             m_iPutFrameLen=0;
-            m_dwPutFrameTime=0;
-            m_iPutFrameCnt=0;
+            m_dwPutVideoFrameTime=0;
+            m_iPutVideoFrameCnt=0;
+            memset(&m_tSegInfo,0,sizeof(T_SegInfo));
             break;
         }
         if(iWriteLen == 0)
@@ -322,23 +377,27 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
             }//如果每次都传入一个足够大的缓存，则不需要这么麻烦
             continue;
         }
-        if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME)
-            printf("FrameToContainer m_dwPutFrameTime %u Len %d iWriteLen %d ProcessedLen[%d] iBufMaxLen[%d]\r\n",m_dwPutFrameTime,m_iPutFrameLen,iWriteLen,tFileFrameInfo.iFrameProcessedLen,pbOutBuf->iBufMaxLen);
+        //if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME)
+            printf("FrameToContainer m_dwPutVideoFrameTime %u Len %d iWriteLen %d ProcessedLen[%d] iBufMaxLen[%d]\r\n",m_dwPutVideoFrameTime,m_iPutFrameLen,iWriteLen,tFileFrameInfo.iFrameProcessedLen,pbOutBuf->iBufMaxLen);
         pbOutBuf->iBufLen=iWriteLen;
+        m_tSegInfo.iSegDurationTime=tFileFrameInfo.dwTimeStamp-m_tSegInfo.iSegStartTime;
+        memcpy(&pbOutBuf->tSegInfo,&m_tSegInfo,sizeof(T_SegInfo));
         m_pDataBufList.push_back(pbOutBuf);
         pbOutBuf = NULL;
+        memset(&m_tSegInfo,0,sizeof(T_SegInfo));
+        m_tSegInfo.iSegStartTime=tFileFrameInfo.dwTimeStamp;
         //int iRemain = MEDIA_FORMAT_MAX_LEN - (iWriteLen-iPutFrameLen);//没用到的封装缓存长度
         //iPutFrameLen=pbOutBuf->iBufMaxLen-iWriteLen-iRemain;//总数据-被打包的数据长度和封装长度=未打包数据长度+未用封装缓存长度再减iRemain=未打包数据长度
         m_iPutFrameLen=tFileFrameInfo.iFrameLen;//iPutFrameLen要等于封装对象中缓存的未打包的数据长度，这样内存才够。
-        m_dwPutFrameTime=0;
-        m_iPutFrameCnt=0;
+        m_dwPutVideoFrameTime=0;
+        m_iPutVideoFrameCnt=0;
     }//gop类打包(mp4)，最新的i帧不会被打包是下次打包，最新的帧长度= 封装对象中缓存的未打包的数据长度
     if(NULL != pbOutBuf)
     {
         delete pbOutBuf;
     }
     
-    return iWriteLen;
+    return m_pDataBufList.size();
 }
 
 /*****************************************************************************
@@ -351,13 +410,13 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
 * -----------------------------------------------
 * 2024/09/26	  V1.0.0		 Yu Weifeng 	  Created
 ******************************************************************************/
-int MediaConvert::GetData(unsigned char * o_pbData,int i_iMaxDataLen)
+int MediaConvert::GetData(unsigned char * o_pbData,int i_iMaxDataLen,T_SegInfo *o_ptSegInfo)
 {
     int iRet = -1;
     
-    if(NULL == o_pbData || i_iMaxDataLen<= 0)
+    if(NULL == o_pbData || i_iMaxDataLen<= 0||NULL == o_ptSegInfo)
     {
-        printf("GetData NULL %d\r\n",i_iMaxDataLen);
+        printf("MediaConvert GetData NULL %d %p\r\n",i_iMaxDataLen,o_ptSegInfo);
         return iRet;
     }
     
@@ -373,6 +432,10 @@ int MediaConvert::GetData(unsigned char * o_pbData,int i_iMaxDataLen)
         {
             memcpy(o_pbData,it->pbBuf,it->iBufLen);
             iRet =it->iBufLen;
+            memcpy(o_ptSegInfo,&it->tSegInfo,sizeof(T_SegInfo));
+            //uint64 ddwTime=it->tSegInfo.dwStartTimeHigh<<32|it->tSegInfo.dwStartTimeLow;
+            //printf("GetData iBufLen %d iBufMaxLen[%d] iHaveKeyFrameFlag %d iSegStartTime[%d][%d %d][%lld]\r\n",
+            //it->iBufLen,it->iBufMaxLen,it->tSegInfo.iHaveKeyFrameFlag,it->tSegInfo.iSegStartTime,it->tSegInfo.iVideoFrameCnt,it->tSegInfo.iVideoFrameCnt,ddwTime);
             delete it;
             m_pDataBufList.pop_front();
         }
@@ -456,7 +519,7 @@ int MediaConvert::GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoE
 }
 
 /*****************************************************************************
--Fuction		: SynchronizerAudioVideo
+-Fuction		: SynchronizerAudioAndVideo
 -Description    : 如果音视频不同步，可能会导致播放器跳帧
 比如ffplay对于落后音频帧很多时间的视频帧 会直接丢掉，造成跳帧(只播i帧现象)
 // 音视频同步策略
@@ -476,7 +539,8 @@ int MediaConvert::SynchronizerAudioVideo(T_MediaFrameInfo * i_ptFrameInfo)
 {
     int iRet = -1;
     unsigned int dwTimeStamp = 0;
-    
+    unsigned int dwTimeStampDiff = 0;
+
     if(NULL == i_ptFrameInfo)
     {
         printf("SynchronizerAudioVideo NULL %d\r\n",iRet);
@@ -492,7 +556,15 @@ int MediaConvert::SynchronizerAudioVideo(T_MediaFrameInfo * i_ptFrameInfo)
         {
             m_dwLastVideoTimeStamp = dwTimeStamp;
         }
-        m_dwVideoTimeStamp += (unsigned int)(dwTimeStamp - m_dwLastVideoTimeStamp);
+        dwTimeStampDiff = (unsigned int)(dwTimeStamp - m_dwLastVideoTimeStamp);
+        if(dwTimeStampDiff>400)
+        {
+            printf("dwTimeStampDiff %u>400 dwTimeStamp %u m_dwLastVideoTimeStamp %u \r\n",dwTimeStampDiff, dwTimeStamp, m_dwLastVideoTimeStamp);
+        }
+        else
+        {
+            m_dwVideoTimeStamp += dwTimeStampDiff;
+        }
 
         if (m_dwVideoTimeStamp < m_dwAudioTimeStamp) // 2.音视频同步策略
         {// 视频时间超过音频时间，同步音频时间(视频间隔不均匀 会差几十ms)
@@ -505,10 +577,13 @@ int MediaConvert::SynchronizerAudioVideo(T_MediaFrameInfo * i_ptFrameInfo)
     }
     else if (i_ptFrameInfo->eFrameType == MEDIA_FRAME_TYPE_AUDIO_FRAME)
     {
+        //i_ptFrameInfo->dwTimeStamp = m_dwVideoTimeStamp; //直接使用，web端会卡
+        //return 0;
+    
         if (0 == m_dwLastAudioTimeStamp)
         {
             m_dwLastAudioTimeStamp = dwTimeStamp;
-            m_dwAudioTimeStamp = m_dwVideoTimeStamp; // 音视频同步
+            m_dwAudioTimeStamp = m_dwVideoTimeStamp; // 音视频同步，必须同源处理，内部MP4打包依赖同源时间戳
         }
         m_dwAudioTimeStamp += (unsigned int)(dwTimeStamp - m_dwLastAudioTimeStamp);
 
@@ -556,6 +631,8 @@ int MediaConvert::AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame)
         printf("AudioTranscode NULL %p\r\n",m_pbAudioFrame);
         return iRet;
     }
+    if(m_eDstAudioEncType == MEDIA_ENCODE_TYPE_UNKNOW)
+        printf("AudioTranscode,eEncType %d,dwSampleRate %d\r\n",m_pbAudioFrame->eEncType,m_pbAudioFrame->dwSampleRate);
     switch(m_pbAudioFrame->eEncType)
     {
         case MEDIA_ENCODE_TYPE_G711A:
@@ -570,9 +647,14 @@ int MediaConvert::AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame)
         }
         case MEDIA_ENCODE_TYPE_AAC:
         {
-            if(0 == m_iPutFrameLen)
-                printf("already aac,no need convert %d\r\n",m_pbAudioFrame->iFrameLen);
-            return m_pbAudioFrame->iFrameLen;
+            if(m_eDstAudioEncType == MEDIA_ENCODE_TYPE_UNKNOW)
+                printf("already aac,dwSampleRate %d,iFrameLen %d\r\n",m_pbAudioFrame->dwSampleRate,m_pbAudioFrame->iFrameLen);
+            //if(m_pbAudioFrame->dwSampleRate == 44100)
+            {
+                return m_pbAudioFrame->iFrameLen;
+            }
+            eSrcAudioCodecType=AUDIO_CODEC_TYPE_AAC;
+            break;
         }
         default :
         {
@@ -906,7 +988,7 @@ int MediaConvert::ParseH264NaluFromFrame(T_MediaFrameInfo *m_ptFrame)
 
     if(NULL == m_ptFrame || NULL == m_ptFrame->pbFrameBuf ||m_ptFrame->iFrameBufLen <= 4)
     {
-        printf("GetFrame NULL %d\r\n", m_ptFrame->iFrameBufLen);
+        printf("ParseH264NaluFromFrame GetFrame NULL %d\r\n", m_ptFrame->iFrameBufLen);
         return iRet;
     }
 	
@@ -1030,7 +1112,7 @@ int MediaConvert::ParseH265NaluFromFrame(T_MediaFrameInfo *m_ptFrame)
 
     if(NULL == m_ptFrame || NULL == m_ptFrame->pbFrameBuf ||m_ptFrame->iFrameBufLen <= 4)
     {
-        printf("GetFrame NULL %d\r\n", m_ptFrame->iFrameBufLen);
+        printf("ParseH264NaluFromFrame GetFrame NULL %d\r\n", m_ptFrame->iFrameBufLen);
         return iRet;
     }
 	
@@ -1388,9 +1470,15 @@ mp4返回一个gop
 * -----------------------------------------------
 * 2020/01/01      V1.0.0              Yu Weifeng       Created
 ******************************************************************************/
-int GetData(unsigned char * o_pbData,int i_iMaxDataLen)
+int GetData(unsigned char * o_pbData,int i_iMaxDataLen,unsigned char * o_pbDataInfo,int i_iMaxInfoLen)
 {
-    return MediaConvert::Instance()->GetData(o_pbData,i_iMaxDataLen);
+    if(NULL == o_pbDataInfo || i_iMaxInfoLen<= sizeof(T_SegInfo))
+    {
+        printf("GetData NULL %d %d\r\n",i_iMaxDataLen,i_iMaxInfoLen);
+        return -1;
+    }
+    T_SegInfo * ptSegInfo=(T_SegInfo *)o_pbDataInfo;
+    return MediaConvert::Instance()->GetData(o_pbData,i_iMaxDataLen,ptSegInfo);
 }
 
 
