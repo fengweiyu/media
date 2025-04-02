@@ -3457,7 +3457,7 @@ int FMP4::CreateSegment(list<T_Fmp4FrameInfo> * i_pFMP4Media,unsigned int i_dwSe
             if(j-1>=0)
             {
                 aptAudioSampleInfo[j-1].dwSampleDuration=(unsigned int)(iter->ddwTimeStamp-ddwLastAudioTimeStamp);
-                aptAudioSampleInfo[j].dwSampleDuration = aptAudioSampleInfo[j-1].dwSampleDuration;//音频可用上一帧的
+                //aptAudioSampleInfo[j].dwSampleDuration = aptAudioSampleInfo[j-1].dwSampleDuration;//音频可用上一帧的
             }
             ddwLastAudioTimeStamp=iter->ddwTimeStamp;
             switch(iter->eEncType)
@@ -3507,10 +3507,10 @@ int FMP4::CreateSegment(list<T_Fmp4FrameInfo> * i_pFMP4Media,unsigned int i_dwSe
             }
             atTrackInfo[i].dwStartDts=m_dwSegmentBaseDecTime;
         }
-        else if(1 == i && dwAudioSampleCount>0)
+        else if(1 == i && dwAudioSampleCount>1)
         {
             atTrackInfo[i].aptSampleInfo= aptAudioSampleInfo;
-            atTrackInfo[i].dwSampleCount= dwAudioSampleCount;
+            atTrackInfo[i].dwSampleCount= dwAudioSampleCount-1;
             if(0 == m_iFindFirstFrame)
             {
                 FMP4_LOGE("0 == m_iFindFirstFrame err %d\r\n",m_dwSegmentBaseDecTime);

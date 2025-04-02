@@ -98,7 +98,7 @@ public:
 private:
     int ForceGetMuxData(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo,unsigned char * o_pbBuf,unsigned int i_dwMaxBufLen,int *o_piHeaderOffset=NULL,int i_iForcePack=0);
     int SaveFrame(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo);
-    int DelAllFrameWithoutLastVideoFrame();
+    int DelAllFrameWithoutLastFrame();
     
     int CreateAudioSpecCfgAAC(unsigned int i_dwFrequency,unsigned int i_dwChannels,unsigned char *o_pbAudioData);
     int GenerateVideoExtraData(E_FMP4_ENC_TYPE eEncType,T_Fmp4AnnexbVideoEncParam *i_ptVideoEncParam,unsigned char * o_pbBuf,unsigned int i_dwMaxBufLen);

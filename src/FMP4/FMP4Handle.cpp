@@ -168,7 +168,7 @@ int FMP4Handle::GetMuxData(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo,unsigned cha
         m_ddwSegmentPTS=m_ddwSegmentMinPTS;
         if(m_ddwSegmentMaxPTS-m_ddwSegmentMinPTS>0)
             m_ddwSegmentDuration=(m_ddwSegmentMaxPTS-m_ddwSegmentMinPTS);
-        DelAllFrameWithoutLastVideoFrame();
+        DelAllFrameWithoutLastFrame();
         //SaveFrame(i_ptFmp4FrameInfo);
     }
     if(i_ptFmp4FrameInfo->eFrameType==FMP4_VIDEO_KEY_FRAME)
@@ -234,7 +234,7 @@ int FMP4Handle::ForceGetMuxData(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo,unsigne
         m_ddwSegmentPTS=m_ddwSegmentMinPTS;
         if(m_ddwSegmentMaxPTS-m_ddwSegmentMinPTS>0)
             m_ddwSegmentDuration=(m_ddwSegmentMaxPTS-m_ddwSegmentMinPTS);
-        DelAllFrameWithoutLastVideoFrame();
+        DelAllFrameWithoutLastFrame();
         //SaveFrame(i_ptFmp4FrameInfo);
     }
     return iDataLen;
@@ -429,7 +429,7 @@ int FMP4Handle::SaveFrame(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo)
 
 
 /*****************************************************************************
--Fuction        : DelAllFrameWithoutLastVideoFrame
+-Fuction        : DelAllFrameWithoutLastFrame
 -Description    : 为了计算每帧的持续时间，最后一帧不会打包进去所以要保留
 音频最后一帧可用上一帧的持续时间，相差不大，无啥影响
 视频最后一帧的持续时间无法计算，为了准确也无法用上一视频帧的持续时间
@@ -441,36 +441,61 @@ int FMP4Handle::SaveFrame(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo)
 * -----------------------------------------------
 * 2023/09/21      V1.0.0         Yu Weifeng       Created
 ******************************************************************************/
-int FMP4Handle::DelAllFrameWithoutLastVideoFrame()
+int FMP4Handle::DelAllFrameWithoutLastFrame()
 {
-    T_Fmp4FrameInfo tFmp4FrameInfo;
-
-    memset(&tFmp4FrameInfo,0,sizeof(T_Fmp4FrameInfo));
+    T_Fmp4FrameInfo tVideoFmp4FrameInfo;
+    T_Fmp4FrameInfo tAuidoFmp4FrameInfo;
+    unsigned char abAudioBuffer[2048];
+    
+    memset(&tVideoFmp4FrameInfo,0,sizeof(T_Fmp4FrameInfo));
+    memset(&tAuidoFmp4FrameInfo,0,sizeof(T_Fmp4FrameInfo));
     for (auto iter = m_FMP4MediaList.rbegin(); iter != m_FMP4MediaList.rend();)
     {
-        if (FMP4_VIDEO_KEY_FRAME == iter->eFrameType||FMP4_VIDEO_INNER_FRAME == iter->eFrameType)
+        if ((FMP4_VIDEO_KEY_FRAME == iter->eFrameType||FMP4_VIDEO_INNER_FRAME == iter->eFrameType)&&
+        (NULL == tVideoFmp4FrameInfo.pbFrameStartPos))
         {
-            memcpy(&tFmp4FrameInfo,&(*iter),sizeof(T_Fmp4FrameInfo));
-            break;
+            memcpy(&tVideoFmp4FrameInfo,&(*iter),sizeof(T_Fmp4FrameInfo));
+        }
+        if ((FMP4_AUDIO_FRAME == iter->eFrameType) && (NULL == tAuidoFmp4FrameInfo.pbFrameStartPos))
+        {
+            memcpy(&tAuidoFmp4FrameInfo,&(*iter),sizeof(T_Fmp4FrameInfo));
         }
         iter++; // 继续遍历下一个元素
     }
-    if(NULL != tFmp4FrameInfo.pbFrameStartPos)
+    if(tAuidoFmp4FrameInfo.iFrameLen>sizeof(abAudioBuffer))
     {
-        if(tFmp4FrameInfo.pbFrameStartPos != m_pbMediaData)
-            memmove(m_pbMediaData,tFmp4FrameInfo.pbFrameStartPos,tFmp4FrameInfo.iFrameLen);
-        m_iCurMediaDataLen = tFmp4FrameInfo.iFrameLen;
-        tFmp4FrameInfo.pbFrameStartPos=m_pbMediaData;
+        FMP4_LOGE("tAuidoFmp4FrameInfo.iFrameLen %d >sizeof(abAudioBuffer) %d err\r\n",tAuidoFmp4FrameInfo.iFrameLen,sizeof(abAudioBuffer));
+        tAuidoFmp4FrameInfo.pbFrameStartPos = NULL;
+        tAuidoFmp4FrameInfo.iFrameLen=0;
     }
     else
     {
-        m_iCurMediaDataLen = 0;
+        memcpy(abAudioBuffer,tAuidoFmp4FrameInfo.pbFrameStartPos,tAuidoFmp4FrameInfo.iFrameLen);
+        tAuidoFmp4FrameInfo.pbFrameStartPos=abAudioBuffer;
+    }
+    m_iCurMediaDataLen = 0;
+    if(NULL != tVideoFmp4FrameInfo.pbFrameStartPos)
+    {
+        if(tVideoFmp4FrameInfo.pbFrameStartPos != m_pbMediaData)
+            memmove(m_pbMediaData+m_iCurMediaDataLen,tVideoFmp4FrameInfo.pbFrameStartPos,tVideoFmp4FrameInfo.iFrameLen);
+        tVideoFmp4FrameInfo.pbFrameStartPos=m_pbMediaData+m_iCurMediaDataLen;
+        m_iCurMediaDataLen += tVideoFmp4FrameInfo.iFrameLen;
+    }
+    if(NULL != tAuidoFmp4FrameInfo.pbFrameStartPos)
+    {
+        memcpy(m_pbMediaData+m_iCurMediaDataLen,tAuidoFmp4FrameInfo.pbFrameStartPos,tAuidoFmp4FrameInfo.iFrameLen);
+        tAuidoFmp4FrameInfo.pbFrameStartPos=m_pbMediaData+m_iCurMediaDataLen;
+        m_iCurMediaDataLen += tAuidoFmp4FrameInfo.iFrameLen;
     }
     
     m_FMP4MediaList.clear();
-    if(NULL != tFmp4FrameInfo.pbFrameStartPos)
+    if(NULL != tVideoFmp4FrameInfo.pbFrameStartPos)
     {
-        m_FMP4MediaList.push_back(tFmp4FrameInfo);
+        m_FMP4MediaList.push_back(tVideoFmp4FrameInfo);
+    }
+    if(NULL != tAuidoFmp4FrameInfo.pbFrameStartPos)
+    {
+        m_FMP4MediaList.push_back(tAuidoFmp4FrameInfo);
     }
     return 0;
 }
