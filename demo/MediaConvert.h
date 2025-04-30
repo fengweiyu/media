@@ -20,6 +20,9 @@
 
 #include "AudioCodec.h"
 #include "MediaHandle.h"
+#ifdef SUPPORT_CODEC
+#include "MediaTranscodeInf.h"
+#endif
 #ifdef SUPPORT_PRI
 #include "XStreamParser.h"
 #include "STDStream.h"
@@ -58,6 +61,11 @@ typedef struct SegInfo
     unsigned int dwStartTimeHigh;//
     unsigned int dwStartTimeLow;//
     unsigned int dwStartAbsTime;//
+    int iEncType;//当xxxFrameCnt=1是可以用，E_MediaEncodeType 
+    int iFrameType;//当xxxFrameCnt=1是可以用，E_MediaFrameType
+    unsigned int dwFrameTimeStamp;//
+    unsigned int dwWidth;//
+    unsigned int dwHeight;//
 }T_SegInfo;
 
 /*****************************************************************************
@@ -131,17 +139,27 @@ public:
     int Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaEncodeType i_eSrcEncType,E_StreamType i_eSrcStreamType,E_StreamType i_eDstStreamType);
     int GetData(unsigned char * o_pbData,int i_iMaxDataLen,T_SegInfo *o_ptSegInfo);
     int GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoEncBufLen,unsigned char * o_pbAudioEncBuf,int i_iMaxAudioEncBufLen);
-
+    int SetWaterMark(int i_iEnable,unsigned char * i_pbTextBuf,int i_iMaxTextBufLen,unsigned char * i_pbFontFileBuf,int i_iMaxFontFileBufLen);
+    int SetTransCodec(int i_iVideoEnable,unsigned char * i_pbDstVideoEncBuf,int i_iMaxDstVideoEncBufLen,int i_iAudioEnable,unsigned char * i_pbDstAudioEncBuf,int i_iMaxDstAudioEncBufLen);
     static MediaConvert *m_pInstance;
 private:
     int SynchronizerAudioVideo(T_MediaFrameInfo * i_ptFrameInfo);
-    int AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame);
+    int AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame,E_AudioCodecType i_eDstCodecType,unsigned int i_dwSampleRate);
+    int MediaTranscode(T_MediaFrameInfo * m_pbFrame);
+    int GetCodecData(T_MediaFrameInfo * o_pbFrame);
+    int CodecDataToOriginalData(T_MediaFrameInfo * i_ptFrameInfo);
+    int DecodeToOriginalData(T_MediaFrameInfo * i_pbFrame,T_MediaFrameInfo * o_pbFrame);
 
     int SetH264NaluData(unsigned char i_bNaluType,unsigned char i_bStartCodeLen,unsigned char *i_pbNaluData,int i_iNaluDataLen,T_MediaFrameInfo *m_ptFrame);
     int SetH265NaluData(unsigned char i_bNaluType,unsigned char i_bStartCodeLen,unsigned char *i_pbNaluData,int i_iNaluDataLen,T_MediaFrameInfo *m_ptFrame);
     int ParseH264NaluFromFrame(T_MediaFrameInfo *m_ptFrame);
     int ParseH265NaluFromFrame(T_MediaFrameInfo *m_ptFrame);
     int ParseNaluFromFrame(T_MediaFrameInfo * o_ptFrameInfo);
+#ifdef SUPPORT_CODEC
+    int CodecFrameToMediaFrame(T_CodecFrame * i_ptCodecFrame,T_MediaFrameInfo * m_ptMediaFrame);
+    int MediaFrameToCodecFrame(T_MediaFrameInfo * i_ptMediaFrame,T_CodecFrame * i_ptCodecFrame);
+    MediaTranscodeInf m_oMediaTranscodeInf;
+#endif
 #ifdef SUPPORT_PRI
     FRAME_INFO* MediaToPri(T_MediaFrameInfo * i_ptMediaFrame);
     int PriToMedia(FRAME_INFO * i_pFrame,T_MediaFrameInfo *o_ptMediaFrameInfo);
@@ -155,12 +173,22 @@ private:
     T_SegInfo m_tSegInfo;//
 	int m_iFindKeyFrame;//0 否 ，1是
     T_MediaFrameInfo m_tFileFrameInfo;//video 的sps等参数集会被tag分段，故要保存
-    E_MediaEncodeType m_eDstVideoEncType;
-    E_MediaEncodeType m_eDstAudioEncType;
+    E_MediaEncodeType m_eDstVideoEncType;//转换后输出的视频编码格式
+    E_MediaEncodeType m_eDstAudioEncType;//转换后输出的音频编码格式
     list<DataBuf *> m_pDataBufList;
     AudioCodec * m_pAudioCodec;
     unsigned char * m_pAudioTranscodeBuf;
-    
+    int m_iTransAudioCodecFlag;//0 否 ，1是
+
+    list<T_CodecFrame> m_tOutCodecFrameList;
+    unsigned char * m_pOutCodecFrameBuf;
+	int m_iOutCodecFrameBufLen;
+    unsigned char * m_pMediaTranscodeBuf;
+    int m_iTransCodecFlag;//0 否 ，1是,目前只用来视频转码
+    E_CodecType m_eDstTransVideoCodecType;
+    E_AudioCodecType m_eDstTransAudioCodecType;
+    unsigned int m_dwAudioCodecSampleRate;//
+
     unsigned int m_dwLastAudioTimeStamp;
     unsigned int m_dwLastVideoTimeStamp;
     unsigned int m_dwVideoTimeStamp;
@@ -169,6 +197,8 @@ private:
 EM_EXPORT_API(int) InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const char *i_strSrcName,const char *i_strDstName);
 EM_EXPORT_API(int) GetData(unsigned char * o_pbData,int i_iMaxDataLen,unsigned char * o_pbDataInfo,int i_iMaxInfoLen);
 EM_EXPORT_API(int) GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoEncBufLen,unsigned char * o_pbAudioEncBuf,int i_iMaxAudioEncBufLen);
+EM_EXPORT_API(int) SetWaterMark(int i_iEnable,unsigned char * i_pbTextBuf,int i_iMaxTextBufLen,unsigned char * i_pbFontFileBuf,int i_iMaxFontFileBufLen);
+EM_EXPORT_API(int) SetTransCodec(int i_iVideoEnable,unsigned char * i_pbDstVideoEncBuf,int i_iMaxDstVideoEncBufLen,int i_iAudioEnable,unsigned char * i_pbDstAudioEncBuf,int i_iMaxDstAudioEncBufLen);
 EM_EXPORT_API(int)  Clean();
 
 
