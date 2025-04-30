@@ -9,6 +9,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
     #这样这里生成的Makefile可以执行install到下面这个目录，缺点是子目录相关的库文件头文件也会拷贝过来
     set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/build/wasm/x64)
     set(AAC_LIB_PATH ${PROJECT_SOURCE_DIR}/AudioCodec/third/lib/wasm/fdk-aac/lib/libfdk-aac.a)
+    set(HOST_PATH_NAME wasm)
+    set(CODEC_PATH ${PROJECT_SOURCE_DIR}/MediaCodec/lib/wasm/x86)
+    set(CODEC_NAME x86.tar.gz)
     set(XBASIC_LIB_PATH ${PROJECT_SOURCE_DIR}/third/XBasic/lib/wasm/libXBasic.a)
     set(XPROTOCOL_LIB_PATH ${PROJECT_SOURCE_DIR}/third/XProtocol/lib/wasm/libXProtocol.a)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows") #WIN32
@@ -17,6 +20,9 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows") #WIN32
     set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/build/win/x64)
     set(SYSTEM_PLAT_LIB_PATH Ws2_32.lib)
     set(AAC_LIB_PATH ${PROJECT_SOURCE_DIR}/AudioCodec/third/lib/win/fdk-aac/lib/libfdk-aac.lib)
+    set(HOST_PATH_NAME win)
+    set(CODEC_PATH ${PROJECT_SOURCE_DIR}/MediaCodec/lib/win/x64msvc)
+    set(CODEC_NAME x64msvc.zip)
     set(XBASIC_LIB_PATH ${PROJECT_SOURCE_DIR}/third/XBasic/lib/win/XBasic_static.lib)
     set(XPROTOCOL_LIB_PATH ${PROJECT_SOURCE_DIR}/third/XProtocol/lib/win/XProtocol_static.lib)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -25,6 +31,9 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(CMAKE_INSTALL_PREFIX ${PROJECT_SOURCE_DIR}/build/linux/x64)
     set(SYSTEM_PLAT_LIB_PATH pthread)
     set(AAC_LIB_PATH ${PROJECT_SOURCE_DIR}/AudioCodec/third/lib/linux/fdk-aac/lib/libfdk-aac.a)
+    set(HOST_PATH_NAME linux)
+    set(CODEC_PATH ${PROJECT_SOURCE_DIR}/MediaCodec/lib/linux/x86)
+    set(CODEC_NAME x86.tar.gz)
     set(XBASIC_LIB_PATH ${PROJECT_SOURCE_DIR}/third/XBasic/lib/linux/libXBasic.a 
     ${PROJECT_SOURCE_DIR}/third/XBasic/lib/linux/libimgui.a 
     ${PROJECT_SOURCE_DIR}/third/XBasic/lib/linux/libssl.a 
@@ -37,9 +46,33 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 else()  
     message("CMAKE_SYSTEM_NAME err is: ${CMAKE_SYSTEM_NAME}")
 endif() 
+
+
+execute_process(
+    COMMAND rm -rf ${CODEC_PATH}
+    COMMAND tar -xvf ${PROJECT_SOURCE_DIR}/MediaCodec/lib/${HOST_PATH_NAME}/${CODEC_NAME}
+    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/MediaCodec/lib/${HOST_PATH_NAME} #如果不设置那么会解压到cmake的执行目录
+)
+set(CODEC_FFMPEG_INC_PATH ${CODEC_PATH}/ffmpeg-7.0.1/include)
+set(CODEC_FFMPEG_LIB_PATH ${CODEC_PATH}/ffmpeg-7.0.1/lib/libavcodec.a ${CODEC_PATH}/ffmpeg-7.0.1/lib/libavdevice.a ${CODEC_PATH}/ffmpeg-7.0.1/lib/libavfilter.a 
+${CODEC_PATH}/ffmpeg-7.0.1/lib/libavformat.a ${CODEC_PATH}/ffmpeg-7.0.1/lib/libavutil.a ${CODEC_PATH}/ffmpeg-7.0.1/lib/libpostproc.a ${CODEC_PATH}/ffmpeg-7.0.1/lib/libswresample.a ${CODEC_PATH}/ffmpeg-7.0.1/lib/libswscale.a)
+set(CODEC_FONTCONF_INC_PATH ${CODEC_PATH}/libfontconfig-5.1.0/include)
+set(CODEC_FONTCONF_LIB_PATH ${CODEC_PATH}/libfontconfig-5.1.0/lib/libfontconfig.a)
+set(CODEC_HARFBUZZ_INC_PATH ${CODEC_PATH}/harfbuzz-8.5.0/include)
+set(CODEC_HARFBUZZ_LIB_PATH ${CODEC_PATH}/harfbuzz-8.5.0/lib/libharfbuzz.a)
+set(CODEC_FREETYPE_INC_PATH ${CODEC_PATH}/freetype-2.13.2/include)
+set(CODEC_FREETYPE_LIB_PATH ${CODEC_PATH}/freetype-2.13.2/lib/libfreetype.a)
+set(CODEC_XML2_INC_PATH ${CODEC_PATH}/libxml2-2.9.12/include)
+set(CODEC_XML2_LIB_PATH ${CODEC_PATH}/libxml2-2.9.12/lib/libxml2.a)
+set(CODEC_X264_INC_PATH ${CODEC_PATH}/x264-stable/include)
+set(CODEC_X264_LIB_PATH ${CODEC_PATH}/x264-stable/lib/libx264.a)
+set(CODEC_X265_INC_PATH ${CODEC_PATH}/x265_2.7/include)
+set(CODEC_X265_LIB_PATH ${CODEC_PATH}/x265_2.7/lib/libx265.a)
+set(CODEC_AAC_INC_PATH ${CODEC_PATH}/fdk-aac-2.0.3/include)
+set(CODEC_AAC_LIB_PATH ${CODEC_PATH}/fdk-aac-2.0.3/lib/libfdk-aac.a)
 # 添加 lib 子目录  
 add_subdirectory(AudioCodec) 
-
+add_subdirectory(MediaCodec) 
  
 
 # 设置C++标准为C++11
@@ -104,7 +137,7 @@ install(FILES ${PUBLIC_HEADERS}
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -s WASM=1 -s TOTAL_MEMORY=268435456 -s RESERVED_FUNCTION_POINTERS=15 -s FORCE_FILESYSTEM=1 -s EXPORTED_FUNCTIONS=[_malloc,_free]")  
 #target_link_options(MyExecutable PRIVATE ) 
 if(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")  
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s WASM=1 -s TOTAL_MEMORY=268435456 -s RESERVED_FUNCTION_POINTERS=20 -s FORCE_FILESYSTEM=1 -s EXPORTED_FUNCTIONS=[_malloc,_free]") 
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -s WASM=1 -s TOTAL_MEMORY=314572800 -s RESERVED_FUNCTION_POINTERS=20 -s FORCE_FILESYSTEM=1 -s EXPORTED_FUNCTIONS=[_malloc,_free] -s EXPORTED_RUNTIME_METHODS=[FS,ccall,cwrap]") 
 endif() 
 
 # 收集源文件  
@@ -118,6 +151,13 @@ if(DEFINED PRI)
     set(MC_INCLUDE_DIRS ${MC_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/third/XBasic/include ${PROJECT_SOURCE_DIR}/third/XBasic/include/XBasic
     ${PROJECT_SOURCE_DIR}/third/XProtocol/include ${PROJECT_SOURCE_DIR}/third/XProtocol/include/XProtocol/StreamParser)
     set(MC_LINK_LIBS ${MC_LINK_LIBS} ${XPROTOCOL_LIB_PATH} ${XBASIC_LIB_PATH}) 
+else()  
+endif()  
+if(DEFINED CODEC)  
+    add_definitions(-DSUPPORT_CODEC)
+    set(MC_INCLUDE_DIRS ${MC_INCLUDE_DIRS} ${CODEC_FFMPEG_INC_PATH})
+    set(MC_LINK_LIBS ${MC_LINK_LIBS} MediaCodec ${CODEC_FFMPEG_LIB_PATH} ${CODEC_FONTCONF_LIB_PATH} ${CODEC_HARFBUZZ_LIB_PATH} ${CODEC_FREETYPE_LIB_PATH} 
+    ${CODEC_XML2_LIB_PATH} ${CODEC_X264_LIB_PATH} ${CODEC_X265_LIB_PATH}) 
 else()  
 endif()  
 target_include_directories(MediaConvert PUBLIC
