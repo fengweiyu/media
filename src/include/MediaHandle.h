@@ -29,6 +29,7 @@ using std::string;
 typedef enum
 {
 	STREAM_TYPE_UNKNOW = 0,
+    STREAM_TYPE_ORIGINAL_STREAM,
     STREAM_TYPE_VIDEO_STREAM,
     STREAM_TYPE_AUDIO_STREAM,
     STREAM_TYPE_MUX_STREAM,//包含音视频两路裸流
@@ -54,6 +55,9 @@ typedef enum
     MEDIA_ENCODE_TYPE_LPCM,// Linear PCM, platform endian
     MEDIA_ENCODE_TYPE_ADPCM,
     MEDIA_ENCODE_TYPE_LLPCM,// Linear PCM, little endian
+    MEDIA_ENCODE_TYPE_RGB,// 8bit*3
+    MEDIA_ENCODE_TYPE_RGBA,// 8bit*4
+    MEDIA_ENCODE_TYPE_YUV420,// 
 }E_MediaEncodeType;
 
 typedef enum
@@ -155,6 +159,7 @@ typedef struct MediaFrameInfo
     //unsigned int adwNaluEndOffset[MAX_NALU_CNT_ONE_FRAME];
     T_VideoEncodeParam tVideoEncodeParam;
     T_AudioEncodeParam tAudioEncodeParam;
+    int iFrameRate;//帧率
 }T_MediaFrameInfo;
 
 /*****************************************************************************
