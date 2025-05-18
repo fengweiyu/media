@@ -17,113 +17,38 @@
  */
 
 //import DownloadMedia from './common.js'; 
-import { customLog, DownloadMedia } from './common.js';
-import { PCMPlayer } from './PlayPCM.js';
-//import './build/MediaConvert.js'; 
+//import './build/MediaConvert.js'; //export { Module , intArrayFromString };
+import { Module , intArrayFromString } from './MediaConvert.js'; //worker创建的时候才加载，所以不会使用全局的，也就需要这么引用，否则会报Module未定义错误
 
-Module.onRuntimeInitialized = async function() 
-{
-	console.log('onRuntimeInitialized:'); 
-	const FontFile='msyh.ttf';
-	const fontResponse = await fetch(FontFile);  
-	const fontArrayBuffer = await fontResponse.arrayBuffer();
-	Module.FS.writeFile('msyh.ttf', new Uint8Array(fontArrayBuffer)); 
-}
 
-var oConvert=null
 
 class convert 
 {
     constructor() 
     {
-        this.m_MediaSource = new MediaSource();
-        this.m_MediaElement = null;
-		this.m_CavasElement = null;
 		this.m_DstName = null;
-		this.m_SrcName = null;
 		this.m_SrcType = null;
 		this.m_SrcBuffer = null;
 		this.m_SourceBuffer=null;  
-        oConvert=this;
-		this.m_DownBuffer = new Uint8Array(0); // 累计缓冲区
-		this.m_BufferQueue = []; // 数据队列，用于存储转换后的帧数据与帧信息
-		this.m_VideoBufferQueue = []; // 数据队列，用于存储转换后的帧数据与帧信息
-		this.m_AudioBufferQueue = []; // 数据队列，用于存储转换后的帧数据与帧信息
-		this.m_LastAudioTimestamp = null;
-		this.m_LastVideoTimestamp = null;
-		//this.audioContext = new(window.AudioContext || window.webkitAudioContext)();//new window.AudioContext;//new (window.AudioContext || window.webkitAudioContext)();  
-		/*switch (nSampleFmt) {
-			case 0:
-				szEncoding = "8bitInt";
-				break;
-			case 1:
-				szEncoding = "16bitInt";
-				break;
-			case 2:
-				szEncoding = "32bitInt";
-				break;
-			case 3:
-				szEncoding = "32bitFloat";
-				break;
-			case 4:
-				szEncoding = "64bitFloat";
-				break;
-			case 5:
-				szEncoding = "8bitInt";
-				break;
-			case 6:
-				szEncoding = "16bitInt";
-				break;
-			case 7:
-				szEncoding = "32bitInt";
-				break;
-			case 8:
-				szEncoding = "32bitFloat";
-				break;
-			case 9:
-				szEncoding = "64bitFloat";
-				break;
-			case 10:
-			case 11:
-				szEncoding = "64bitInt";
-				break;
-			default:
-				this.logger.logError("Unsupported audio sampleFmt " + nSampleFmt + "!");
-		}*/
-		this.m_pPcmPlayer = null;
-		this.m_iChannels = 1;
-		this.m_iSampleRate = 8000;
-		this.m_strSampleFmtEncoding = "16bitInt";
-		this.m_CavasCtx = null;
-    }
+		this.m_DstEnc = null;
+		this.m_FontFile = 'msyh.ttf';
 
-    attachMediaElement(mediaElement,cavasElement,textMark,enableMark) 
+		self.onmessage = this.process.bind(this);
+		Module.onRuntimeInitialized = this.ModuleInitialized.bind(this);
+    }
+    async ModuleInitialized() 
     {
-        this.m_MediaElement = mediaElement;
-		this.m_CavasElement = cavasElement;
-		const strFontFile='msyh.ttf';
-		const strWaterMark=textMark;	
-		this.setWaterMark(enableMark,strFontFile,strWaterMark);
-		//setTransCodec(1,'h264',0,null);
-		this.m_CavasCtx = this.m_CavasElement.getContext('2d'); 
-    }
-	
-    playAudioPCM(channels,sampleRate,pcmData) 
-	{  
-		//pcmData = await audioContext.decodeAudioData(arrayBuffer); 
+		console.log('onRuntimeInitialized:'); 
 
-		// 创建 AudioBuffer，并将 Float32Array PCM 数据加载到其中  
-		/*const audioBuffer = this.audioContext.createBuffer(channels, pcmData.length,sampleRate);  
-		audioBuffer.copyToChannel(pcmData, 0); // 将PCM数据复制到 AudioBuffer 的第一个通道  
-
-		// 创建 AudioBufferSourceNode  
-		const source = this.audioContext.createBufferSource();  
-		source.buffer = audioBuffer; // 设置要播放的音频缓冲  
-		source.connect(this.audioContext.destination); // 连接到音频输出  
-		source.start(0); // 开始播放 */
+		const fontResponse = await fetch(this.m_FontFile);  
+		const fontArrayBuffer = await fontResponse.arrayBuffer();
+		Module.FS.writeFile(this.m_FontFile, new Uint8Array(fontArrayBuffer)); 
+		self.postMessage({res:'ModuleInitialized',data:{FontFile:this.m_FontFile}}); 
     }
-    setWaterMark(Enable,FontFile,WaterMark) 
+    setWaterMark(Enable,WaterMark) 
     {
+		const FontFile=this.m_FontFile;
+
 		let arrFontFile = intArrayFromString(FontFile).concat(0);
 		let bufFontFile = Module._malloc(arrFontFile.length);
 		Module.HEAPU8.set(arrFontFile, bufFontFile);
@@ -132,329 +57,76 @@ class convert
 		Module.HEAPU8.set(arrWaterMark, bufWaterMark);
 		Module._SetWaterMark(Enable,bufWaterMark,arrWaterMark.length,bufFontFile,arrFontFile.length);	
     }
-	setTransCodec(iVideoEnable,iDstVideoEncodec,iAudioEnable,iDstAudioEncodec) 
-    {
+	setTransCodec(iVideoEnable,strDstVideoEncodec,iAudioEnable,strDstAudioEncodec,strDstAudioSampleRate) 
+    {//mp4硬解必然会设置音频编码为aac 44100否则web端无法播放,软解的时候只针对音频采样率会有处理
 		var DstVideoEncodecLen=0;
 		var DstAudioEncodecLen=0;
+		var DstAudioSampleRateLen=0;
 		var bufDstVideoEncodec=null;
 		var bufDstAudioEncodec=null;
-		if(iDstVideoEncodec!=null)
+		var bufDstAudioSampleRate=null;
+		
+		if(strDstVideoEncodec!=null)
 		{
-			let arrDstVideoEncodec = intArrayFromString(iDstVideoEncodec).concat(0);
+			let arrDstVideoEncodec = intArrayFromString(strDstVideoEncodec).concat(0);
 			bufDstVideoEncodec = Module._malloc(arrDstVideoEncodec.length);
 			Module.HEAPU8.set(arrDstVideoEncodec, bufDstVideoEncodec);
 			DstVideoEncodecLen=arrDstVideoEncodec.length;
 		}
-		if(iDstAudioEncodec!=null)
+		if(strDstAudioEncodec!=null)
 		{
-			let arrDstAudioEncodec = intArrayFromString(iDstAudioEncodec).concat(0);
+			let arrDstAudioEncodec = intArrayFromString(strDstAudioEncodec).concat(0);
 			bufDstAudioEncodec = Module._malloc(arrDstAudioEncodec.length);
 			Module.HEAPU8.set(arrDstAudioEncodec, bufDstAudioEncodec);
 			DstAudioEncodecLen=arrDstAudioEncodec.length;
 		}
-		Module._SetTransCodec(iVideoEnable,bufDstVideoEncodec,DstVideoEncodecLen,iAudioEnable,bufDstAudioEncodec,DstAudioEncodecLen);	
-    }
-    detachMediaElement() 
-    {
-        if (this.m_MediaElement) 
-        {
-            this.m_MediaElement = null;
-        }
-        if (this.m_CavasElement) 
+		if(strDstAudioSampleRate!=null)
 		{
-			this.m_CavasElement = null;
+			let arrDstAudioSampleRate = intArrayFromString(strDstAudioSampleRate).concat(0);
+			bufDstAudioSampleRate = Module._malloc(arrDstAudioSampleRate.length);
+			Module.HEAPU8.set(arrDstAudioSampleRate, bufDstAudioSampleRate);
+			DstAudioSampleRateLen=arrDstAudioSampleRate.length;
 		}
-		if (this.m_pPcmPlayer) 
-		{
-			this.m_pPcmPlayer.destroy();
-			this.m_pPcmPlayer = null;
-		}
+		Module._SetTransCodec(iVideoEnable,bufDstVideoEncodec,DstVideoEncodecLen,iAudioEnable,bufDstAudioEncodec,DstAudioEncodecLen,bufDstAudioSampleRate,DstAudioSampleRateLen);	
     }
-    appendTypedArray(a, b) 
-    {  
-        // 创建一个新的 TypedArray，长度为 a 和 b 的长度之和  
-        const result = new (a.constructor)(a.length + b.length);  
-        
-        // 将 a 的内容复制到新数组中  
-        result.set(a, 0);  
-        
-        // 将 b 的内容复制到新数组中，从 a 的末尾开始  
-        result.set(b, a.length);  
-        
-        return result;  
-    } 
-    process(SrcBuffer,SrcName,SrcType,DstName) 
-    {
-		this.m_SrcName = SrcName;
-		this.m_SrcType = SrcType;
-		this.m_DstName = DstName;//"OriginalData"
-		this.m_SrcBuffer = SrcBuffer;
 
-		console.log('process v '+SrcName+' a '+DstName);
-		if(".OriginalData" == DstName)
-		{
+
+    process(e) 
+    {
+		// 进行耗时操作  
+		
+		const message = e.data; // 接收传入的对象 
+		// 根据命令处理  
+		if (message.cmd === 'convert') //data: { Buffer:this.m_SrcBuffer,SrcType:this.m_SrcType,DstName:this.m_DstName } 
+		{  
+			const data = message.data;  
+			this.m_SrcType = data.SrcType;
+			this.m_DstName = data.DstName;//"OriginalData"
+			this.m_SrcBuffer = data.Buffer;
 			this.convert(this.m_SrcBuffer,this.m_SrcType,this.m_DstName);//OriginalData
-			return;
 		}
-
-		if(null != this.m_MediaElement)
-			this.m_MediaElement.src = URL.createObjectURL(this.m_MediaSource); 
-		this.m_MediaSource.addEventListener('sourceopen', this.MediaSourceOpen);//静态方法
-    }
-	playVideo() 
-	{  
-		var convertedChunk = null; 
-		var timeInterval = 10;
-		var dwFrameTimeStamp = 10;
-		if (this.m_VideoBufferQueue.length > 0) 
-		{	//{ data: convertedChunk, haveKeyFrame,startTime,durationTime,videoCnt,audioCnt,iEncType,iFrameType,dwFrameTimeStamp,width,height}
-			const dequeuedObject = this.m_VideoBufferQueue.shift(); // 从队列中取出一个数据块
-			convertedChunk=dequeuedObject.data;
-			var width = dequeuedObject.width;
-			var height = dequeuedObject.height;
-			dwFrameTimeStamp = dequeuedObject.dwFrameTimeStamp;
-			if(this.m_CavasElement && width>0 && height>0)//video rgba
-			{
-				/*if( this.m_DownBuffer.length<=0)
-				{
-					this.m_CavasElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
-					this.m_CavasElement.width = width; //如果不设置会出现宽高不一致的问题，导致画面被缩放
-					this.m_CavasElement.height = height; //这三句只要执行一次即可，条件换成flag标记来做也行
-
-					this.m_DownBuffer=convertedChunk;
-					//this.rgbaToBMP(convertedChunk,width,height);//bmp不会渲染a通道即透明度不会被处理
-				}
-				else
-				{
-					//this.m_DownBuffer=this.appendTypedArray(this.m_DownBuffer,convertedChunk);
-				}
-				if(this.m_DownBuffer.length>=1)//0*1024*1024
-				{ 
-					//DownloadMedia(this.m_DownBuffer,this.m_SrcName+this.m_DstName);
-					//this.m_DownBuffer=null;
-				}*/					
-
-				if(this.m_CavasElement.style.display=='none')
-				{
-					this.m_CavasElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
-					this.m_CavasElement.width = width; //如果不设置会出现宽高不一致的问题，导致画面被缩放
-					this.m_CavasElement.height = height; //这三句只要执行一次即可，条件换成flag标记来做也行
-
-					//this.rgbaToBMP(convertedChunk,width,height);//bmp不会渲染a通道即透明度不会被处理
-				}
-				// 将Uint8Array封装为ImageData  
-				const imageData = new ImageData(new Uint8ClampedArray(convertedChunk.buffer), width, height);  
-				// 绘制到Canvas  
-				this.m_CavasCtx.putImageData(imageData, 0, 0); //drawImage putImageData
-
-				/*var imageData = this.m_CavasCtx.createImageData(width, height);
-				var data = imageData.data;
-				for(var i=0; i < width*height; i++) 
-				{
-					var index = i*4;
-					data[index + 0] = convertedChunk[index + 0];//255; // R值，例如红色
-					data[index + 1] = convertedChunk[index + 1];   // G值，例如绿色
-					data[index + 2] = convertedChunk[index + 2];   // B值，例如蓝色
-					data[index + 3] = 255;//convertedChunk[index + 3]; // A值，例如半透明度，这里设置255不透明
-				}*/
-				/*for (var y = 0; y < height; y++) {
-					for (var x = 0; x < width; x++) {
-						var index = (y * width + x) * 4; // 计算当前像素在data数组中的索引
-						data[index + 0] = convertedChunk[index + 0];//255; // R值，例如红色
-						data[index + 1] = convertedChunk[index + 1];   // G值，例如绿色
-						data[index + 2] = convertedChunk[index + 2];   // B值，例如蓝色
-						data[index + 3] = 255;//convertedChunk[index + 3]; // A值，例如半透明度，这里设置255不透明
-					}
-				}*/
-				/*this.m_CavasCtx.putImageData(imageData, 0, 0); // 绘制图像数据到Canvas上*/
-
-				
-				/*if(dequeuedObject.iFrameType==10)
-				{
-					// 转换为PNG格式的Base64 URL  
-					const pngDataUrl = this.m_CavasElement.toDataURL('image/png');
-					const link = document.createElement('a');  
-					link.href = pngDataUrl;  
-					link.download = 'image.png'; // 设置下载后文件名  
-					document.body.appendChild(link); // 必须加入DOM  
-					link.click(); // 触发下载  
-					document.body.removeChild(link); // 下载后移除  
-				}*/			
-			}
+		else if (message.cmd === 'setWaterMark') //{cmd:'setWaterMark',data: { enable:enableMark,text:textMark} } 
+		{  
+			const data = message.data;  
+			const enable = data.enable;
+			const text = data.text;
+			this.setWaterMark(enable,text);//
 		} 
-		if(null == this.m_LastVideoTimestamp)
+		else if (message.cmd === 'setTransCodec') //({cmd:'setTransCodec',data: { VideoEnable:iVideoEnable,DstVideoEncodec:strDstVideoEncodec,AudioEnable:iAudioEnable,DstAudioEncodec:strDstAudioEncodec,DstAudioSample:strDstAudioSample} });  
+		{  
+			const data = message.data;  
+			this.setTransCodec(data.VideoEnable,data.DstVideoEncodec,data.AudioEnable,data.DstAudioEncodec,data.DstAudioSample);//
+		} 
+		else if (message.cmd === 'close')
 		{
-			this.m_LastVideoTimestamp=dwFrameTimeStamp;
+			self.postMessage({res:'close',data: message.data}); 
 		}
-		timeInterval=dwFrameTimeStamp-this.m_LastVideoTimestamp;
-		this.m_LastVideoTimestamp=dwFrameTimeStamp;
-		console.log('playVideo timeInterval '+timeInterval+' dwFrameTimeStamp '+dwFrameTimeStamp);
-		setTimeout(this.playVideo.bind(this), timeInterval);//解码转码耗时所以得不到调用会卡(单线程)
-	}
-	playAudio() 
-	{  
-		var convertedChunk = null; 
-		var timeInterval = 10;
-		var dwFrameTimeStamp = 10;
-		if (this.m_AudioBufferQueue.length > 0) 
-		{	//{ data: convertedChunk, haveKeyFrame,startTime,durationTime,videoCnt,audioCnt,iEncType,iFrameType,dwFrameTimeStamp,width,height}
-			const dequeuedObject = this.m_AudioBufferQueue.shift(); // 从队列中取出一个数据块
-			convertedChunk=dequeuedObject.data;
-			dwFrameTimeStamp = dequeuedObject.dwFrameTimeStamp;
-			if (!this.m_pPcmPlayer) 
-			{
-				this.m_pPcmPlayer = new PCMPlayer({
-					encoding: this.m_strSampleFmtEncoding,
-					channels: this.m_iChannels,
-					sampleRate: this.m_iSampleRate,
-					flushingTime: 5000,
-					volume: 1
-				});//change 音量（将音量（增益值）设置为 1，表示全音量播放。如果需要调低音量，可以将 value 设置为一个小于 1 的值。）
-			}
-			const subBuffer = convertedChunk.slice(44);//偏移wav头
-			this.m_pPcmPlayer.play(subBuffer, 1); //new Uint8Array(subBuffer)  固定用1倍速
-		}
-		if(null == this.m_LastAudioTimestamp)
+		else
 		{
-			this.m_LastAudioTimestamp=dwFrameTimeStamp;
+			console.error('Invalid cmd '+message.cmd);
 		}
-		timeInterval=dwFrameTimeStamp-this.m_LastAudioTimestamp;
-		this.m_LastAudioTimestamp=dwFrameTimeStamp;
-		console.log('playAudio timeInterval '+timeInterval+' dwFrameTimeStamp '+dwFrameTimeStamp);
-		setTimeout(this.playAudio.bind(this), timeInterval);//解码转码耗时所以得不到调用会卡(单线程)
-	}
-	downWAV(convertedChunk) 
-	{  
-		if( this.m_DownBuffer.length<=0)
-			{
-				this.m_DownBuffer=convertedChunk.slice(44);
-			}
-			else
-			{
-				this.m_DownBuffer=this.appendTypedArray(this.m_DownBuffer,convertedChunk.slice(44));
-			}
-			if(this.m_DownBuffer.length>=1*1024*1024)//0*1024*1024
-			{ 
-				const buffer = new ArrayBuffer(44);  
-				const view = new DataView(buffer);  						
-				// RIFF identifier 'RIFF'  
-				this.writeString(view, 0, 'RIFF');  	
-				// file length minus first 8 bytes  
-				view.setUint32(4, 36 + this.m_DownBuffer.length, true);  
-				// RIFF type 'WAVE'  
-				this.writeString(view, 8, 'WAVE');  
-				// format chunk identifier 'fmt '  
-				this.writeString(view, 12, 'fmt ');  
-				view.setUint32(16, 16, true); // chunk size  
-				view.setUint16(20, 1, true); // format (PCM)  
-				view.setUint16(22, 1, true);  
-				view.setUint32(24, 8000, true);  
-				view.setUint32(28, 8000 * 1 * 16 / 8, true); // byte rate  
-				view.setUint16(32, 1 * 16 / 8, true); // block align  
-				view.setUint16(34, 16, true); // bits per sample  
-				// data chunk header  
-				this.writeString(view, 36, 'data');  
-				view.setUint32(40, this.m_DownBuffer.length, true);  
-				const uint8View = new Uint8Array(buffer);  
-				const DownBuffer=this.appendTypedArray(uint8View,this.m_DownBuffer);	
-				DownloadMedia(DownBuffer,this.m_SrcName+this.m_DstName);
-				this.m_DownBuffer=null;
-			}	
-	}
-	writeString(view, offset, string) 
-	{  
-		for (let i = 0; i < string.length; i++) {  
-		  view.setUint8(offset + i, string.charCodeAt(i));  
-		}  
-	}
-	MediaSourceOpen() 
-    {//静态方法
-        oConvert.MediaSourceHandle();//或者使用绑定方法
     }
-	MediaSourceHandle()
-	{  
-		this.convert(this.m_SrcBuffer,this.m_SrcType,this.m_DstName);//OriginalData
-        var convertedChunk = null; 
-        while (this.m_BufferQueue.length > 0) 
-        {//{ data: convertedChunk, haveKeyFrame,startTime,durationTime,videoCnt,audioCnt,iEncType,iFrameType,dwFrameTimeStamp}
-            const dequeuedObject = this.m_BufferQueue.shift(); // 从队列中取出一个数据块
-            convertedChunk=dequeuedObject.data;
 
-			if (convertedChunk) 
-			{ // 成功创建，输出内容
-				if(this.m_DstName == ".mp4")
-				{
-					if(null == this.m_SourceBuffer)
-					{// codecs="avc1.42E01E, mp4a.40.2" h264 aac   
-						var VideoCodec=null;
-						var AudioCodec=null;
-						let mMedia = this.GetMediaDstEnc();
-						let v = mMedia[0];
-						let a = mMedia[1];
-						if (v.includes("h264"))//video/webm; codecs="avc1.64001E"：用于 WebM 容器中的 H.264 视频（通常则使用 VP8 或 VP9）。
-						{//video/mp4; codecs="avc1.64001E"：用于 MP4 容器中的 H.264 视频。
-							VideoCodec="avc1.42E01E";//avc1.42E01E
-						}//video/mp2t; codecs="avc1.42E01E"：用于 MPEG-TS 容器中的 H.264 视频
-						else if (v.includes("h265"))
-						{//video/mp4; codecs="hevc"：用于 MPEG-4 容器格式中的 H.265 视频。
-							VideoCodec="hvc1.1.6.L93.B0";
-						}//用于传输流（如 TS 或 MPEG-TS）编码中的 H.265 视频。
-						if (a.includes("aac"))
-						{
-							AudioCodec="mp4a.40.2";//audio/mp4; codecs="mp4a.40.2"：这是一般用于 MP4 容器中的 AAC 音频格式。
-						}//audio/aac：用于裸 AAC 数据。
-						else if(a.includes("g711a"))
-						{
-							AudioCodec="alaw";//audio/mp4; codecs="law"：表示使用 G.711 A-law 编码的音频数据。
-						}//audio/g711：用于直接表示 G.711 编码的数据。
-						if(null != VideoCodec && null !=AudioCodec)
-						{
-							this.m_SourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+VideoCodec+','+AudioCodec+'"');
-							localVideoElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
-						}
-						else if(null != VideoCodec)
-						{
-							this.m_SourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+VideoCodec+'"');
-							localVideoElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
-						}
-						else if(null != AudioCodec)
-						{
-							this.m_SourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+AudioCodec+'"');
-							localVideoElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
-						}
-						else
-						{
-							console.log('GetMediaDstEnc err v '+VideoCodec+' a '+AudioCodec);    
-						}
-					}
-  
-				}   
-				if( this.m_DownBuffer==null)
-					this.m_DownBuffer=convertedChunk;
-				else
-				{
-					this.m_DownBuffer=this.appendTypedArray(this.m_DownBuffer,convertedChunk);
-				}
-			} 
-			else
-			{// 处理未成功创建的情况 
-				console.log('FormatConvert err'); 
-			} 			
-        }
-		if(this.m_DownBuffer.length>=1)
-		{
-			if(null != this.m_SourceBuffer)
-				this.m_SourceBuffer.appendBuffer(this.m_DownBuffer);  
-			DownloadMedia(this.m_DownBuffer,this.m_SrcName+this.m_DstName);
-			//this.m_DownBuffer=null;
-		}
-		/*sourceBuffer.addEventListener('updateend', function() {  
-			if (!sourceBuffer.updating) {  
-				//mediaSource.endOfStream();  
-				//localVideoElement.play();  
-			}  
-		}); */
-	}
 
 
 	GetMediaDstEnc()
@@ -535,6 +207,7 @@ class convert
 			const dwFrameTimeStamp = convertedInfo[10];//
 			const width = convertedInfo[11];//
 			const height = convertedInfo[12];//
+			const dwSampleRate = convertedInfo[13];//
 
             // Combine the two values  
             const absTime = (absTimeHigh << BigInt(32)) | absTimeLow; // Use | for combined value  
@@ -554,18 +227,16 @@ class convert
             });  
             
             //console.log('convertedChunk haveKeyFrame '+haveKeyFrame+' startTime '+startTime+' durationTime '+durationTime+' videoCnt '+videoCnt+' audioCnt '+audioCnt+' absTime '+formattedDate); 
-			if((iFrameType==1||iFrameType==2||iFrameType==3) && 1==videoCnt)
-			{//软解
-				this.m_VideoBufferQueue.push({ data: convertedChunk, haveKeyFrame,startTime,durationTime,videoCnt,audioCnt,iEncType,iFrameType,dwFrameTimeStamp,width,height});
-			}
-			else if((iFrameType==4) && 1==audioCnt)
-			{//软解
-				this.m_AudioBufferQueue.push({ data: convertedChunk, haveKeyFrame,startTime,durationTime,videoCnt,audioCnt,iEncType,iFrameType,dwFrameTimeStamp,width,height});
-			}
-			else
+			if(null == this.m_DstEnc)
 			{
-				this.m_BufferQueue.push({ data: convertedChunk, haveKeyFrame,startTime,durationTime,videoCnt,audioCnt,iEncType,iFrameType,dwFrameTimeStamp,width,height});
+				this.m_DstEnc = this.GetMediaDstEnc();
 			}
+			let vEncode = this.m_DstEnc[0];
+			let aEncode = this.m_DstEnc[1];
+			const obj = { data: convertedChunk,vEncode,aEncode,haveKeyFrame,startTime,durationTime,videoCnt,audioCnt,iEncType,iFrameType,dwFrameTimeStamp,width,height,dwSampleRate};
+
+			// 反馈结果  
+			self.postMessage({res:'convert',data: obj}); 
 		} while (1);
 
 
@@ -578,101 +249,19 @@ class convert
 
     destroy() 
     {
-        this.detachMediaElement();
-        oConvert=null;
+        
     }
-	/**  
-	 * 将 RGBA 数据转换为 BMP (32-bit) 文件  
-	 * @param {Uint8Array} rgbaData - RGBA 像素数据 (每像素4字节: R,G,B,A)  
-	 * @param {number} width - 图像宽度  
-	 * @param {number} height - 图像高度  
-	 * @returns {Blob} - 返回 BMP 文件的 Blob 对象  
-	 */  
-	rgbaToBMP(rgbaData, width, height) 
-	{  
-		// BMP 文件头结构 (共14字节)  
-		const fileHeaderSize = 14;  
-		// BMP 信息头结构 (共40字节)  
-		const infoHeaderSize = 40;  
-		// 每像素字节数 (32位 = 4字节)  
-		const bytesPerPixel = 4;  
-		// 每行字节数 (32位BMP不需要行填充)  
-		const rowSize = width * bytesPerPixel;  
-		// 像素数据总大小  
-		const pixelDataSize = rowSize * height;  
-		
-		// 创建 ArrayBuffer 存储整个BMP文件  
-		const buffer = new ArrayBuffer(fileHeaderSize + infoHeaderSize + pixelDataSize);  
-		const view = new DataView(buffer);  
-		
-		let offset = 0;  
-		
-		// --- 写入文件头 (14字节) ---  
-		view.setUint16(offset, 0x4D42, true);  // 'BM' 标识  
-		offset += 2;  
-		view.setUint32(offset, fileHeaderSize + infoHeaderSize + pixelDataSize, true); // 文件总大小  
-		offset += 4;  
-		view.setUint16(offset, 0, true);       // 保留字段1  
-		offset += 2;  
-		view.setUint16(offset, 0, true);       // 保留字段2  
-		offset += 2;  
-		view.setUint32(offset, fileHeaderSize + infoHeaderSize, true); // 像素数据偏移量  
-		offset += 4;  
-		
-		// --- 写入信息头 (40字节) ---  
-		view.setUint32(offset, infoHeaderSize, true);  // 信息头大小  
-		offset += 4;  
-		view.setInt32(offset, width, true);     // 图像宽度  
-		offset += 4;  
-		view.setInt32(offset, height, true);    // 图像高度 (正数表示倒序)  
-		offset += 4;  
-		view.setUint16(offset, 1, true);       // 颜色平面数 (必须为1)  
-		offset += 2;  
-		view.setUint16(offset, 32, true);      // 每像素位数 (32)  
-		offset += 2;  
-		view.setUint32(offset, 0, true);       // 压缩方式 (0=不压缩)  
-		offset += 4;  
-		view.setUint32(offset, pixelDataSize, true); // 像素数据大小  
-		offset += 4;  
-		view.setInt32(offset, 0, true);        // 水平分辨率 (像素/米)  
-		offset += 4;  
-		view.setInt32(offset, 0, true);        // 垂直分辨率 (像素/米)  
-		offset += 4;  
-		view.setUint32(offset, 0, true);      // 调色板颜色数 (0=不使用)  
-		offset += 4;  
-		view.setUint32(offset, 0, true);      // 重要颜色数 (0=全部重要)  
-		offset += 4;  
-		
-		// --- 写入像素数据 (BGRA顺序) ---  
-		const pixels = new Uint8Array(buffer, offset);  
-		for (let y = height - 1; y >= 0; y--) 
-		{ // BMP是倒序存储  
-			const srcRow = y * width * 4;  
-			const dstRow = (height - 1 - y) * width * 4;  
-			for (let x = 0; x < width; x++) 
-			{  
-				const srcPos = srcRow + x * 4;  
-				const dstPos = dstRow + x * 4;  
-				// RGBA -> BGRA  
-				pixels[dstPos]     = rgbaData[srcPos + 2]; // B  
-				pixels[dstPos + 1] = rgbaData[srcPos + 1]; // G  
-				pixels[dstPos + 2] = rgbaData[srcPos];     // R  
-				pixels[dstPos + 3] = rgbaData[srcPos + 3]; // A  
-			}  
-		}  
-
-		// 创建下载链接  
-		const url = URL.createObjectURL(new Blob([buffer], { type: 'image/bmp' }));  
-		const a = document.createElement('a');  
-		a.href = url;  
-		a.download = 'output_32bit.bmp';  
-		document.body.appendChild(a);  
-		a.click();  
-		document.body.removeChild(a);  
-		URL.revokeObjectURL(url); 
-	} 
 
     
 }
 
-export default convert;
+// 实例化 
+const oConvert = new convert();  //在 Worker 脚本中（convert.js），如果你想让其中的对象自动处理消息，需要在文件中 实例化。否则，onmessage 不会响应任何消息。
+// 这样就绑定了事件  
+
+ 
+
+
+//在外部文件（或通过导入）执行了任何实例化操作(创建对象)，才会绑定 onmessage(因为构造数中设置接收消息)
+//export default convert; //默认导出 //这个js文件要作为worker使用，所以就不需要导出了，统一使用消息交互
+//export {convert}; //命名导出
