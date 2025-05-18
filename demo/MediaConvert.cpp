@@ -19,9 +19,9 @@
 #define MEDIA_OUTPUT_BUF_MAX_LEN	(2*1024*1024) 
 #define MEDIA_INPUT_BUF_MAX_LEN	(6*1024*1024) 
 
-
+//(暂时不依赖后续去掉)
 // WAVE file header format 字符数组为大端，其余为小端
-typedef struct WavHeader
+/*typedef struct WavHeader
 {
 	unsigned char   abChunkId[4];        // RIFF string
 	unsigned int    dwChunkSize;         // overall size of file in bytes (36 + data_size)
@@ -35,7 +35,7 @@ typedef struct WavHeader
 	unsigned short  wBitsPerSample;    // bits per sample, 8- 8bits, 16- 16 bits etc
 	unsigned char   abSubChunk2Id[4];   // Contains the letters "data"
 	unsigned int    dwSubChunk2Size;    // NumSamples * NumChannels * BitsPerSample/8 - size of the next chunk that will be read
-} T_WavHeader;//一般只在文件头中，即开始发一次即可，不需要每帧前面加
+} T_WavHeader;//一般只在文件头中，即开始发一次即可，不需要每帧前面加*/
 
 
 MediaConvert * MediaConvert::m_pInstance = new MediaConvert();//一般使用饿汉模式,懒汉模式线程不安全
@@ -66,9 +66,9 @@ MediaConvert:: MediaConvert()
     m_pMediaTranscodeBuf = new unsigned char [MEDIA_OUTPUT_BUF_MAX_LEN];
     m_eDstTransVideoCodecType=CODEC_TYPE_H264;
     m_eDstTransAudioCodecType=AUDIO_CODEC_TYPE_AAC;
-    m_dwAudioCodecSampleRate=44100;
+    m_dwAudioCodecSampleRate=0;
     m_iTransCodecFlag=0;
-
+    m_iSetWaterMarkFlag=0;
     
     m_dwLastAudioTimeStamp=0;
     m_dwLastVideoTimeStamp=0;
@@ -193,11 +193,15 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
         else if(STREAM_TYPE_ORIGINAL_STREAM==i_eDstStreamType)
         {//
             m_eDstTransAudioCodecType=AUDIO_CODEC_TYPE_WAV_PCM;
-            m_dwAudioCodecSampleRate=8000;
+            //m_dwAudioCodecSampleRate=8000;//由外部设置
             CodecDataToOriginalData(&tFileFrameInfo);
+            m_eDstVideoEncType = MEDIA_ENCODE_TYPE_RGBA;
+            m_eDstAudioEncType = MEDIA_ENCODE_TYPE_WAV;//MEDIA_ENCODE_TYPE_LPCM;
             continue;
         }
         ptFrameInfo =&tFileFrameInfo;
+        if(0!=m_iSetWaterMarkFlag)
+            m_iTransCodecFlag=1;
         if(ptFrameInfo->eFrameType != MEDIA_FRAME_TYPE_AUDIO_FRAME && 0 != m_iTransCodecFlag)
         {
             MediaTranscode(ptFrameInfo);
@@ -236,10 +240,11 @@ int MediaConvert::ConvertFromPri(unsigned char * i_pbSrcData,int i_iSrcDataLen,E
             m_tSegInfo.iAudioFrameCnt++;
             if(0 != m_iTransAudioCodecFlag)
             {
-                if(AudioTranscode(ptFrameInfo,m_eDstTransAudioCodecType,m_dwAudioCodecSampleRate)<=0)
+                if(AudioTranscode(ptFrameInfo,m_eDstTransAudioCodecType,m_dwAudioCodecSampleRate,&tTranscodeFrameInfo)<=0)
                 {
                     continue;//转换失败或数据不够，则跳过这一帧
                 }
+                ptFrameInfo=&tTranscodeFrameInfo;
             }
             m_eDstAudioEncType = ptFrameInfo->eEncType;
         }
@@ -367,11 +372,15 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
         else if(STREAM_TYPE_ORIGINAL_STREAM==i_eDstStreamType)
         {//
             m_eDstTransAudioCodecType=AUDIO_CODEC_TYPE_WAV_PCM;
-            m_dwAudioCodecSampleRate=8000;
+            //m_dwAudioCodecSampleRate=8000;//由外部设置
             CodecDataToOriginalData(&tFileFrameInfo);
+            m_eDstVideoEncType = MEDIA_ENCODE_TYPE_RGBA;
+            m_eDstAudioEncType = MEDIA_ENCODE_TYPE_WAV;//MEDIA_ENCODE_TYPE_LPCM;
             continue;
         }
         ptFrameInfo =&tFileFrameInfo;
+        if(0!=m_iSetWaterMarkFlag)
+            m_iTransCodecFlag=1;
         if(ptFrameInfo->eFrameType != MEDIA_FRAME_TYPE_AUDIO_FRAME && 0 != m_iTransCodecFlag)
         {
             MediaTranscode(ptFrameInfo);
@@ -410,10 +419,11 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
             m_tSegInfo.iAudioFrameCnt++;
             if(0 != m_iTransAudioCodecFlag)
             {
-                if(AudioTranscode(ptFrameInfo,m_eDstTransAudioCodecType,m_dwAudioCodecSampleRate)<=0)
+                if(AudioTranscode(ptFrameInfo,m_eDstTransAudioCodecType,m_dwAudioCodecSampleRate,&tTranscodeFrameInfo)<=0)
                 {
                     continue;//转换失败或数据不够，则跳过这一帧
                 }
+                ptFrameInfo=&tTranscodeFrameInfo;
             }
             m_eDstAudioEncType = ptFrameInfo->eEncType;
         }
@@ -465,7 +475,7 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
             }//如果每次都传入一个足够大的缓存，则不需要这么麻烦
             continue;
         }
-        //if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME)
+        if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME)
             printf("FrameToContainer%d m_dwPutVideoFrameTime %u Len %d iWriteLen %d ProcessedLen[%d] iBufMaxLen[%d]\r\n",m_iPutVideoFrameCnt,m_dwPutVideoFrameTime,m_iPutFrameLen,iWriteLen,tFileFrameInfo.iFrameProcessedLen,pbOutBuf->iBufMaxLen);
         pbOutBuf->iBufLen=iWriteLen;
         m_tSegInfo.iSegDurationTime=ptFrameInfo->dwTimeStamp-m_tSegInfo.iSegStartTime;
@@ -565,6 +575,12 @@ int MediaConvert::GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoE
                 iRet=0;
                 break;
             }
+            case MEDIA_ENCODE_TYPE_RGBA:
+            {
+                snprintf((char *)o_pbVideoEncBuf,i_iMaxVideoEncBufLen,"%s","rgba");
+                iRet=0;
+                break;
+            }
             default:
             {
                 printf("m_eDstVideoEncType err %d %d\r\n",i_iMaxVideoEncBufLen,m_eDstVideoEncType);
@@ -587,6 +603,18 @@ int MediaConvert::GetEncodeType(unsigned char * o_pbVideoEncBuf,int i_iMaxVideoE
             case MEDIA_ENCODE_TYPE_G711A:
             {
                 snprintf((char *)o_pbAudioEncBuf,i_iMaxAudioEncBufLen,"%s","g711a");
+                iRet=0;
+                break;
+            }
+            case MEDIA_ENCODE_TYPE_LPCM:
+            {
+                snprintf((char *)o_pbVideoEncBuf,i_iMaxVideoEncBufLen,"%s","pcm");
+                iRet=0;
+                break;
+            }
+            case MEDIA_ENCODE_TYPE_WAV:
+            {
+                snprintf((char *)o_pbVideoEncBuf,i_iMaxVideoEncBufLen,"%s","wav");
                 iRet=0;
                 break;
             }
@@ -705,7 +733,7 @@ int MediaConvert::SynchronizerAudioVideo(T_MediaFrameInfo * i_ptFrameInfo)
 * -----------------------------------------------
 * 2024/09/26	  V1.0.0		 Yu Weifeng 	  Created
 ******************************************************************************/
-int MediaConvert::AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame,E_AudioCodecType i_eDstCodecType,unsigned int i_dwSampleRate)
+int MediaConvert::AudioTranscode(T_MediaFrameInfo * i_pbAudioFrame,E_AudioCodecType i_eDstCodecType,unsigned int i_dwDstSampleRate,T_MediaFrameInfo * o_pbAudioFrame)
 {
     int iRet = -1;
     T_AudioCodecParam i_tSrcCodecParam;
@@ -714,9 +742,9 @@ int MediaConvert::AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame,E_AudioCodecT
     int iWriteLen = 0;
 
 
-    if(NULL == m_pbAudioFrame || m_pbAudioFrame->iFrameLen<= 0)
+    if(NULL == i_pbAudioFrame || i_pbAudioFrame->iFrameLen<= 0)
     {
-        printf("AudioTranscode NULL %p\r\n",m_pbAudioFrame);
+        printf("AudioTranscode NULL %p\r\n",i_pbAudioFrame);
         return iRet;
     }
     if(AUDIO_CODEC_TYPE_AAC != i_eDstCodecType && AUDIO_CODEC_TYPE_WAV_PCM != i_eDstCodecType)
@@ -725,8 +753,8 @@ int MediaConvert::AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame,E_AudioCodecT
         return iRet;
     }
     if(m_eDstAudioEncType == MEDIA_ENCODE_TYPE_UNKNOW)
-        printf("AudioTranscode,eEncType %d,dwSampleRate %d,dst eEncType %d,dwSampleRate %d\r\n",m_pbAudioFrame->eEncType,m_pbAudioFrame->dwSampleRate,i_eDstCodecType,i_dwSampleRate);
-    switch(m_pbAudioFrame->eEncType)
+        printf("AudioTranscode,eEncType %d,dwSampleRate %d,dst eEncType %d,dwSampleRate %d\r\n",i_pbAudioFrame->eEncType,i_pbAudioFrame->dwSampleRate,i_eDstCodecType,i_dwDstSampleRate);
+    switch(i_pbAudioFrame->eEncType)
     {
         case MEDIA_ENCODE_TYPE_G711A:
         {
@@ -741,67 +769,80 @@ int MediaConvert::AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame,E_AudioCodecT
         case MEDIA_ENCODE_TYPE_AAC:
         {
             if(m_eDstAudioEncType == MEDIA_ENCODE_TYPE_UNKNOW&& AUDIO_CODEC_TYPE_AAC == i_eDstCodecType)
-                printf("already aac,dwSampleRate %d,iFrameLen %d\r\n",m_pbAudioFrame->dwSampleRate,m_pbAudioFrame->iFrameLen);
+                printf("already aac,dwSampleRate %d,iFrameLen %d\r\n",i_pbAudioFrame->dwSampleRate,i_pbAudioFrame->iFrameLen);
             if(i_eDstCodecType == AUDIO_CODEC_TYPE_AAC)
             {
-                return m_pbAudioFrame->iFrameLen;
+                memset(o_pbAudioFrame,0,sizeof(T_MediaFrameInfo));
+                memcpy(o_pbAudioFrame,i_pbAudioFrame,sizeof(T_MediaFrameInfo));
+                return o_pbAudioFrame->iFrameLen;
             }
             eSrcAudioCodecType=AUDIO_CODEC_TYPE_AAC;
             break;
         }
         default :
         {
-            printf("AudioTranscode eEncType err %d\r\n",m_pbAudioFrame->eEncType);
+            printf("AudioTranscode eEncType err %d\r\n",i_pbAudioFrame->eEncType);
             return iRet;
         }
     }
-    if(eSrcAudioCodecType == i_eDstCodecType && m_pbAudioFrame->dwSampleRate == i_dwSampleRate)
+    if(eSrcAudioCodecType == i_eDstCodecType && i_pbAudioFrame->dwSampleRate == i_dwDstSampleRate)
     {
-        //printf("AudioTranscode,CodecType%d %d && dwSampleRate%d SampleRate%d\r\n",eSrcAudioCodecType, i_eDstCodecType, m_pbAudioFrame->dwSampleRate, i_dwSampleRate);
-        return m_pbAudioFrame->iFrameLen;
+        //printf("AudioTranscode,CodecType%d %d && dwSampleRate%d SampleRate%d\r\n",eSrcAudioCodecType, i_eDstCodecType, i_pbAudioFrame->dwSampleRate, i_dwDstSampleRate);
+        return i_pbAudioFrame->iFrameLen;
     }
 
     
     memset(&i_tSrcCodecParam,0,sizeof(T_AudioCodecParam));
-    i_tSrcCodecParam.dwBitsPerSample=m_pbAudioFrame->tAudioEncodeParam.dwBitsPerSample;
-    i_tSrcCodecParam.dwChannels=m_pbAudioFrame->tAudioEncodeParam.dwChannels;
-    i_tSrcCodecParam.dwSampleRate=m_pbAudioFrame->dwSampleRate;
+    i_tSrcCodecParam.dwBitsPerSample=i_pbAudioFrame->tAudioEncodeParam.dwBitsPerSample;
+    i_tSrcCodecParam.dwChannels=i_pbAudioFrame->tAudioEncodeParam.dwChannels;
+    i_tSrcCodecParam.dwSampleRate=i_pbAudioFrame->dwSampleRate;
     i_tSrcCodecParam.eAudioCodecType=eSrcAudioCodecType;
     memcpy(&i_tDstCodecParam,&i_tSrcCodecParam,sizeof(T_AudioCodecParam));
     i_tDstCodecParam.eAudioCodecType=i_eDstCodecType;
-    i_tDstCodecParam.dwSampleRate=i_dwSampleRate;//采样率要转换，否则web端无法支持
+    if(i_dwDstSampleRate>0)
+        i_tDstCodecParam.dwSampleRate=i_dwDstSampleRate;//采样率要转换，否则web端无法支持
 
-    iRet = m_pAudioCodec->Transcode(m_pbAudioFrame->pbFrameStartPos,m_pbAudioFrame->iFrameLen,i_tSrcCodecParam,m_pAudioTranscodeBuf,MEDIA_FORMAT_MAX_LEN,i_tDstCodecParam);
+    iRet = m_pAudioCodec->Transcode(i_pbAudioFrame->pbFrameStartPos,i_pbAudioFrame->iFrameLen,i_tSrcCodecParam,m_pAudioTranscodeBuf,MEDIA_FORMAT_MAX_LEN,i_tDstCodecParam);
     if(iRet <= 0)
     {
-        //printf("Transcode iRet %d iFrameLen%d\r\n",iRet,m_pbAudioFrame->iFrameLen);
+        printf("Transcode iRet %d iFrameLen%d\r\n",iRet,i_pbAudioFrame->iFrameLen);
         return iRet;
     } 
-    //printf("Transcode iRet %d iFrameLen%d\r\n",iRet,m_pbAudioFrame->iFrameLen);
+    //printf("Transcode iRet %d iFrameLen%d %p\r\n",iRet,i_pbAudioFrame->iFrameLen,i_pbAudioFrame->pbFrameStartPos);
     iWriteLen=iRet;
     iRet=0;
-    do
+    
+    if(AUDIO_CODEC_TYPE_WAV_PCM != i_eDstCodecType)
     {
-        iWriteLen+=iRet;
-        iRet=m_pAudioCodec->Transcode(NULL,0,i_tSrcCodecParam,m_pAudioTranscodeBuf+iWriteLen,MEDIA_FORMAT_MAX_LEN-iWriteLen,i_tDstCodecParam);
-    } while(iRet>0);
+        do
+        {
+            iWriteLen+=iRet;
+            iRet=m_pAudioCodec->Transcode(NULL,0,i_tSrcCodecParam,m_pAudioTranscodeBuf+iWriteLen,MEDIA_FORMAT_MAX_LEN-iWriteLen,i_tDstCodecParam);
+        } while(iRet>0);
+    }
 
-
+    memset(o_pbAudioFrame,0,sizeof(T_MediaFrameInfo));
+    memcpy(o_pbAudioFrame,i_pbAudioFrame,sizeof(T_MediaFrameInfo));
     switch(i_tDstCodecParam.eAudioCodecType)
     {
         case AUDIO_CODEC_TYPE_AAC:
         {
-            m_pbAudioFrame->eEncType=MEDIA_ENCODE_TYPE_AAC;
+            o_pbAudioFrame->eEncType=MEDIA_ENCODE_TYPE_AAC;
             break;
         }
         case AUDIO_CODEC_TYPE_PCMU:
         {
-            m_pbAudioFrame->eEncType=MEDIA_ENCODE_TYPE_G711U;
+            o_pbAudioFrame->eEncType=MEDIA_ENCODE_TYPE_G711U;
             break;
         }
         case AUDIO_CODEC_TYPE_PCMA:
         {
-            m_pbAudioFrame->eEncType=MEDIA_ENCODE_TYPE_G711A;
+            o_pbAudioFrame->eEncType=MEDIA_ENCODE_TYPE_G711A;
+            break;
+        }
+        case AUDIO_CODEC_TYPE_WAV_PCM:
+        {
+            o_pbAudioFrame->eEncType=MEDIA_ENCODE_TYPE_WAV;
             break;
         }
         default :
@@ -810,14 +851,14 @@ int MediaConvert::AudioTranscode(T_MediaFrameInfo * m_pbAudioFrame,E_AudioCodecT
             return iRet;
         }
     }
-    m_pbAudioFrame->dwSampleRate=i_tDstCodecParam.dwSampleRate;
-    m_pbAudioFrame->tAudioEncodeParam.dwBitsPerSample=i_tDstCodecParam.dwBitsPerSample;
-    m_pbAudioFrame->tAudioEncodeParam.dwChannels=i_tDstCodecParam.dwChannels;
-    m_pbAudioFrame->pbFrameBuf=m_pAudioTranscodeBuf;//
-    m_pbAudioFrame->iFrameBufLen=iWriteLen;//
-    m_pbAudioFrame->iFrameBufMaxLen=MEDIA_FORMAT_MAX_LEN;//
-    m_pbAudioFrame->iFrameLen=iWriteLen;
-    m_pbAudioFrame->pbFrameStartPos=m_pAudioTranscodeBuf;
+    o_pbAudioFrame->dwSampleRate=i_tDstCodecParam.dwSampleRate;//会覆盖原来的采样率，所以必须使用单独的输出参数
+    o_pbAudioFrame->tAudioEncodeParam.dwBitsPerSample=i_tDstCodecParam.dwBitsPerSample;
+    o_pbAudioFrame->tAudioEncodeParam.dwChannels=i_tDstCodecParam.dwChannels;
+    o_pbAudioFrame->pbFrameBuf=m_pAudioTranscodeBuf;//
+    o_pbAudioFrame->iFrameBufLen=iWriteLen;//
+    o_pbAudioFrame->iFrameBufMaxLen=MEDIA_FORMAT_MAX_LEN;//
+    o_pbAudioFrame->iFrameLen=iWriteLen;
+    o_pbAudioFrame->pbFrameStartPos=m_pAudioTranscodeBuf;
     
     return iWriteLen;
 }
@@ -987,7 +1028,7 @@ int MediaConvert :: SetWaterMark(int i_iEnable,unsigned char * i_pbTextBuf,int i
 
     if(0 == i_iEnable)
     {
-        m_iTransCodecFlag=0;//
+        m_iSetWaterMarkFlag=0;//
     }
     else
     {
@@ -1001,7 +1042,7 @@ int MediaConvert :: SetWaterMark(int i_iEnable,unsigned char * i_pbTextBuf,int i
             printf("SetWaterMark Font NULL err %d\r\n",i_iMaxFontFileBufLen);
             return iRet;
         }
-        m_iTransCodecFlag=1;//加水印就要调用转码
+        m_iSetWaterMarkFlag=1;//加水印就要调用转码
         memcpy(strText,i_pbTextBuf,i_iMaxTextBufLen);
         memcpy(strFontFile,i_pbFontFileBuf,i_iMaxFontFileBufLen);
     }
@@ -1012,6 +1053,7 @@ int MediaConvert :: SetWaterMark(int i_iEnable,unsigned char * i_pbTextBuf,int i
 /*****************************************************************************
 -Fuction        : SetTransCodec
 -Description    : 设置是否启动转码
+//mp4硬解必然会设置音频编码为aac 44100否则web端无法播放,软解的时候只针对音频采样率会有处理
 -Input          : 
 -Output         : 
 -Return         : 
@@ -1019,13 +1061,15 @@ int MediaConvert :: SetWaterMark(int i_iEnable,unsigned char * i_pbTextBuf,int i
 * -----------------------------------------------
 * 2020/01/01      V1.0.0              Yu Weifeng       Created
 ******************************************************************************/
-int MediaConvert :: SetTransCodec(int i_iVideoEnable,unsigned char * i_pbDstVideoEncBuf,int i_iMaxDstVideoEncBufLen,int i_iAudioEnable,unsigned char * i_pbDstAudioEncBuf,int i_iMaxDstAudioEncBufLen)
+int MediaConvert :: SetTransCodec(int i_iVideoEnable,unsigned char * i_pbDstVideoEncBuf,int i_iMaxDstVideoEncBufLen,int i_iAudioEnable,unsigned char * i_pbDstAudioEncBuf,int i_iMaxDstAudioEncBufLen,unsigned char * i_pbDstAudioSampleRateBuf,int i_iMaxDstAudioSampleRateBufLen)
 {
     int iRet = -1;
     char strDstVideoEnc[16];
     char strDstAudioEnc[16];
+    char strDstAudioSampleRate[16];
     memset(strDstVideoEnc,0,sizeof(strDstVideoEnc));
     memset(strDstAudioEnc,0,sizeof(strDstAudioEnc));
+    memset(strDstAudioSampleRate,0,sizeof(strDstAudioSampleRate));
 
     if(0 != i_iVideoEnable && (NULL== i_pbDstVideoEncBuf || i_iMaxDstVideoEncBufLen<=0|| i_iMaxDstVideoEncBufLen>=sizeof(strDstVideoEnc)))
     {
@@ -1038,7 +1082,16 @@ int MediaConvert :: SetTransCodec(int i_iVideoEnable,unsigned char * i_pbDstVide
         return iRet;
     }
 
-
+    if(NULL== i_pbDstAudioSampleRateBuf || i_iMaxDstAudioSampleRateBufLen<=0|| i_iMaxDstAudioSampleRateBufLen>=sizeof(strDstAudioSampleRate))
+    {
+        printf("NULL== i_pbDstAudioSampleRateBuf use default %d\r\n",i_iMaxDstAudioSampleRateBufLen);
+    }
+    else
+    {
+        memcpy(strDstAudioSampleRate,i_pbDstAudioSampleRateBuf,i_iMaxDstAudioSampleRateBufLen);
+        printf("m_iTransAudioCodecFlag %d strDstAudioSampleRate %s\r\n",m_iTransAudioCodecFlag,strDstAudioSampleRate);
+    }
+    
     if(0 == i_iVideoEnable)
     {
         m_iTransCodecFlag=i_iVideoEnable;
@@ -1079,6 +1132,15 @@ int MediaConvert :: SetTransCodec(int i_iVideoEnable,unsigned char * i_pbDstVide
             m_eDstTransAudioCodecType=AUDIO_CODEC_TYPE_PCMA;
             m_dwAudioCodecSampleRate=8000;
         }
+
+        if(NULL != strstr(strDstAudioSampleRate,"44100"))
+        {
+            m_dwAudioCodecSampleRate=44100;
+        }
+        else if(NULL != strstr(strDstAudioSampleRate,"8000"))
+        {
+            m_dwAudioCodecSampleRate=8000;
+        }
     }
     return 0;
 }
@@ -1101,11 +1163,12 @@ int MediaConvert :: DecodeToOriginalData(T_MediaFrameInfo * i_pbFrame,T_MediaFra
     
     if(NULL== i_pbFrame||NULL== o_pbFrame)
     {
-        printf("NULL== m_pbFrameerr \r\n");
+        printf("NULL== i_pbFrame||NULL== o_pbFrame err \r\n");
         return iRet;
     }
     if(i_pbFrame->eFrameType == MEDIA_FRAME_TYPE_AUDIO_FRAME)
     {
+        printf("UNSUPPORT AUDIO_FRAME \r\n");
         return 0;
     }
     memset(&tSrcFrame,0,sizeof(T_CodecFrame));
@@ -1116,8 +1179,6 @@ int MediaConvert :: DecodeToOriginalData(T_MediaFrameInfo * i_pbFrame,T_MediaFra
     tDstFrame.pbFrameBuf=m_pOutCodecFrameBuf+m_iOutCodecFrameBufLen;
     tDstFrame.iFrameBufMaxLen=MEDIA_OUTPUT_BUF_MAX_LEN-m_iOutCodecFrameBufLen;
     
-    printf("DecodeToOriginalData dwTimeStamp%d,iFrameRate %d,iFrameBufLen%d,iFrameLen %d,dwNaluCount%d,iFrameRate%d\r\n",i_pbFrame->dwTimeStamp,
-    tDstFrame.iFrameRate,tSrcFrame.iFrameBufLen,i_pbFrame->iFrameLen,i_pbFrame->dwNaluCount,i_pbFrame->iFrameRate);
     iRet = m_oMediaTranscodeInf.DecodeToRGB(&tSrcFrame, &tDstFrame);
     if(iRet < 0)
     {
@@ -1128,7 +1189,7 @@ int MediaConvert :: DecodeToOriginalData(T_MediaFrameInfo * i_pbFrame,T_MediaFra
     {
         if(tDstFrame.iFrameBufLen == 0)
         {
-            printf("tDstFrame.iFrameBufLen == 0 \r\n");
+            printf("DecodeToRGB DstFrame.iFrameBufLen == 0 \r\n");
             break;
         } 
         m_iOutCodecFrameBufLen += tDstFrame.iFrameBufLen;
@@ -1139,6 +1200,8 @@ int MediaConvert :: DecodeToOriginalData(T_MediaFrameInfo * i_pbFrame,T_MediaFra
         memmove(m_pOutCodecFrameBuf,m_pOutCodecFrameBuf+tDstFrame.iFrameBufLen,tDstFrame.iFrameBufLen);//
         m_iOutCodecFrameBufLen-=tDstFrame.iFrameBufLen;
     }while(0);
+    //printf("DecodeToOriginalData dwTimeStamp%d,iFrameRate %d,iFrameBufLen%d,iFrameLen %d,dwNaluCount%d,iFrameRate%d\r\n",i_pbFrame->dwTimeStamp,
+    //tDstFrame.iFrameRate,o_pbFrame->iFrameBufLen,i_pbFrame->iFrameLen,i_pbFrame->dwNaluCount,i_pbFrame->iFrameRate);
     iRet=0;
 #endif
     return iRet;
@@ -1159,6 +1222,7 @@ int MediaConvert :: CodecDataToOriginalData(T_MediaFrameInfo * i_ptFrameInfo)
     int iRet = -1;
     T_MediaFrameInfo * ptFrameInfo =NULL;
     T_MediaFrameInfo tTranscodeFrameInfo;
+    T_MediaFrameInfo tAudioTranscodeFrameInfo;
 	DataBuf * pbOutBuf =NULL;
 
     if(NULL== i_ptFrameInfo)
@@ -1184,21 +1248,29 @@ int MediaConvert :: CodecDataToOriginalData(T_MediaFrameInfo * i_ptFrameInfo)
         m_tSegInfo.iAudioFrameCnt++;
     }
     m_tSegInfo.dwFrameTimeStamp=ptFrameInfo->dwTimeStamp;
-    m_tSegInfo.iEncType=ptFrameInfo->eEncType;
+    m_tSegInfo.iEncType=ptFrameInfo->eEncType;//MEDIA_ENCODE_TYPE_RGBA
     m_tSegInfo.iFrameType=ptFrameInfo->eFrameType;
     m_tSegInfo.dwWidth=ptFrameInfo->dwWidth;
     m_tSegInfo.dwHeight=ptFrameInfo->dwHeight;
+    m_tSegInfo.dwSampleRate=ptFrameInfo->dwSampleRate;
 
     if(i_ptFrameInfo->eFrameType == MEDIA_FRAME_TYPE_AUDIO_FRAME)
     {
-        AudioTranscode(i_ptFrameInfo,m_eDstTransAudioCodecType,m_dwAudioCodecSampleRate);
-        memcpy(&tTranscodeFrameInfo,i_ptFrameInfo,sizeof(T_MediaFrameInfo));
+        iRet = AudioTranscode(ptFrameInfo,m_eDstTransAudioCodecType,m_dwAudioCodecSampleRate,&tAudioTranscodeFrameInfo);
+        if(iRet <= 0)
+        {
+            printf("AudioTranscode iRet <= 0 \r\n");
+            return iRet;
+        }
+        memcpy(&tTranscodeFrameInfo,&tAudioTranscodeFrameInfo,sizeof(T_MediaFrameInfo));
         ptFrameInfo=&tTranscodeFrameInfo;
         ptFrameInfo->pbFrameBuf=m_pMediaTranscodeBuf;
         ptFrameInfo->iFrameBufMaxLen=MEDIA_OUTPUT_BUF_MAX_LEN;
-        memcpy(ptFrameInfo->pbFrameBuf,i_ptFrameInfo->pbFrameBuf,i_ptFrameInfo->iFrameBufLen-sizeof(T_WavHeader));
-        ptFrameInfo->iFrameBufLen=i_ptFrameInfo->iFrameBufLen-sizeof(T_WavHeader);
-        ptFrameInfo=i_ptFrameInfo;
+        memcpy(ptFrameInfo->pbFrameBuf,tAudioTranscodeFrameInfo.pbFrameBuf,tAudioTranscodeFrameInfo.iFrameBufLen);
+        ptFrameInfo->iFrameBufLen=tAudioTranscodeFrameInfo.iFrameBufLen;//前端处理44字节wav头
+        //memcpy(ptFrameInfo->pbFrameBuf,tAudioTranscodeFrameInfo.pbFrameBuf+sizeof(T_WavHeader),tAudioTranscodeFrameInfo.iFrameBufLen-sizeof(T_WavHeader));
+        //ptFrameInfo->iFrameBufLen=tAudioTranscodeFrameInfo.iFrameBufLen-sizeof(T_WavHeader);
+        m_tSegInfo.dwSampleRate=ptFrameInfo->dwSampleRate;
     }
     else
     {
@@ -2213,6 +2285,7 @@ int SetWaterMark(int i_iEnable,unsigned char * i_pbTextBuf,int i_iMaxTextBufLen,
 /*****************************************************************************
 -Fuction        : SetTransCodec
 -Description    : 设置是否启动转码
+//mp4硬解必然会设置音频编码为aac 44100否则web端无法播放,软解的时候只针对音频采样率会有处理
 -Input          : 
 -Output         : 
 -Return         : 
@@ -2220,9 +2293,9 @@ int SetWaterMark(int i_iEnable,unsigned char * i_pbTextBuf,int i_iMaxTextBufLen,
 * -----------------------------------------------
 * 2020/01/01      V1.0.0              Yu Weifeng       Created
 ******************************************************************************/
-int SetTransCodec(int i_iVideoEnable,unsigned char * i_pbDstVideoEncBuf,int i_iMaxDstVideoEncBufLen,int i_iAudioEnable,unsigned char * i_pbDstAudioEncBuf,int i_iMaxDstAudioEncBufLen)
+int SetTransCodec(int i_iVideoEnable,unsigned char * i_pbDstVideoEncBuf,int i_iMaxDstVideoEncBufLen,int i_iAudioEnable,unsigned char * i_pbDstAudioEncBuf,int i_iMaxDstAudioEncBufLen,unsigned char * i_pbDstAudioSampleRateBuf,int i_iMaxDstAudioSampleRateBufLen)
 {
-    return MediaConvert::Instance()->SetTransCodec(i_iVideoEnable,i_pbDstVideoEncBuf,i_iMaxDstVideoEncBufLen,i_iAudioEnable,i_pbDstAudioEncBuf,i_iMaxDstAudioEncBufLen);
+    return MediaConvert::Instance()->SetTransCodec(i_iVideoEnable,i_pbDstVideoEncBuf,i_iMaxDstVideoEncBufLen,i_iAudioEnable,i_pbDstAudioEncBuf,i_iMaxDstAudioEncBufLen,i_pbDstAudioSampleRateBuf,i_iMaxDstAudioSampleRateBufLen);
 }
 
 
