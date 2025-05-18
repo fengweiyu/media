@@ -315,48 +315,63 @@ int CodecAAC::InitDecode()
 int CodecAAC::Decode(unsigned char * i_abSrcBuf,int i_iSrcBufLen,unsigned char * o_abDstBuf,int i_iDstBufMaxLen,T_AudioCodecParam *o_ptCodecParam)
 {
     int iRet=-1;
-    int iLen=0;
+    int iDstDecodeBufLen=0;
+    AAC_DECODER_ERROR eERR;
+    CStreamInfo * ptInfo=NULL;
+    unsigned int dwSrcDecodeBufLenValid=0,dwSrcDecodeBufLen=0;
+    unsigned char *pbSrcDecodeBuf=i_abSrcBuf;
+    unsigned char *pbDstDecodeBuf=o_abDstBuf;
+    int iDstDecodeBufMaxLen=i_iDstBufMaxLen;
+
+
     if(NULL == i_abSrcBuf || NULL == o_abDstBuf)
     {
         AC_LOGE("CodecAAC Decode err %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
         return iRet;
     }
-    AAC_DECODER_ERROR err;
-    CStreamInfo *info;
-    UINT valid, buffer_size;
-    unsigned char *ptr=i_abSrcBuf;
-    int size=i_iSrcBufLen;
-    unsigned char *decoder_buffer=o_abDstBuf;
-    int decoder_buffer_size=i_iDstBufMaxLen;
 
-    do {
-        valid = buffer_size = size;
-        err = aacDecoder_Fill(m_ptDecoder, (UCHAR**) &ptr, &buffer_size, &valid);
-        ptr += buffer_size - valid;
-        size -= buffer_size - valid;
-        if (err == AAC_DEC_NOT_ENOUGH_BITS)
-            continue;
-        if (err != AAC_DEC_OK)
-            break;
-        err = aacDecoder_DecodeFrame(m_ptDecoder, (INT_PCM *) (decoder_buffer+iLen), decoder_buffer_size / sizeof(INT_PCM), 0);
-        if (!ptr && err != AAC_DEC_OK)
-            break;
-        if (err == AAC_DEC_NOT_ENOUGH_BITS)
-            continue;
-        if (err != AAC_DEC_OK) 
-        {
-            AC_LOGE("Decoding failed\n");
-            return iRet;
-        }
-        info = aacDecoder_GetStreamInfo(m_ptDecoder);
-        //decoder_output(decoder_buffer, info->numChannels * info->frameSize*sizeof(INT_PCM));
-        iLen+=info->numChannels * info->frameSize*sizeof(INT_PCM);
-        o_ptCodecParam->dwChannels=info->numChannels;
-        o_ptCodecParam->dwBitsPerSample=sizeof(INT_PCM)*8;
-        o_ptCodecParam->dwSampleRate=info->sampleRate;
-        o_ptCodecParam->eAudioCodecType=AUDIO_CODEC_TYPE_PCM;
-    } while (size > 0);
-    iRet=iLen;
-	return iRet;
+    dwSrcDecodeBufLenValid = i_iSrcBufLen;
+    dwSrcDecodeBufLen = i_iSrcBufLen;
+    eERR = aacDecoder_Fill(m_ptDecoder, (UCHAR**) &pbSrcDecodeBuf, &dwSrcDecodeBufLen, &dwSrcDecodeBufLenValid);
+    //pbSrcDecodeBuf += dwSrcDecodeBufLen - dwSrcDecodeBufLenValid;
+    //i_iSrcBufLen -= dwSrcDecodeBufLen - dwSrcDecodeBufLenValid;
+    if (eERR == AAC_DEC_NOT_ENOUGH_BITS)
+    {
+        AC_LOGI("aacDecoder_Fill %d AAC_DEC_NOT_ENOUGH_BITS %d %d\r\n",eERR,dwSrcDecodeBufLen,dwSrcDecodeBufLenValid);
+        return 0;
+    }
+    if (eERR != AAC_DEC_OK)
+    {
+        AC_LOGE("aacDecoder_Fill ERR %d %d %d\r\n",eERR,dwSrcDecodeBufLen,dwSrcDecodeBufLenValid);
+        return iRet;
+    }
+    eERR = aacDecoder_DecodeFrame(m_ptDecoder, (INT_PCM *) (pbDstDecodeBuf+iDstDecodeBufLen), iDstDecodeBufMaxLen / sizeof(INT_PCM), 0);
+    if (!pbSrcDecodeBuf && eERR != AAC_DEC_OK)
+    {
+        AC_LOGE("aacDecoder_DecodeFrame ERR %d %d %d iDstDecodeBufMaxLen%d\r\n",eERR,dwSrcDecodeBufLen,dwSrcDecodeBufLenValid,iDstDecodeBufMaxLen);
+        return iRet;
+    }
+    if (eERR == AAC_DEC_NOT_ENOUGH_BITS)
+    {
+        AC_LOGI("aacDecoder_DecodeFrame %d AAC_DEC_NOT_ENOUGH_BITS %d %d\r\n",eERR,dwSrcDecodeBufLen,dwSrcDecodeBufLenValid);
+        return 0;
+    }
+    if (eERR != AAC_DEC_OK) 
+    {
+        AC_LOGE("Decoding failed %x ,dwSrcDecodeBufLen%d dwSrcDecodeBufLenValid%d iDstDecodeBufLen%d iDstDecodeBufMaxLen%d\r\n",eERR,dwSrcDecodeBufLen,dwSrcDecodeBufLenValid,iDstDecodeBufLen,iDstDecodeBufMaxLen);
+        return iRet;
+    }
+    ptInfo = aacDecoder_GetStreamInfo(m_ptDecoder);
+    //decoder_output(decoder_buffer, info->numChannels * info->frameSize*sizeof(INT_PCM));
+    iDstDecodeBufLen+=ptInfo->numChannels * ptInfo->frameSize*sizeof(INT_PCM);
+    
+    AC_LOGD("Decoding %x ,dwSrcDecodeBufLen%d dwSrcDecodeBufLenValid%d iDstDecodeBufLen%d iDstDecodeBufMaxLen%d\r\n",eERR,dwSrcDecodeBufLen,dwSrcDecodeBufLenValid,iDstDecodeBufLen,iDstDecodeBufMaxLen);
+    o_ptCodecParam->dwChannels=ptInfo->numChannels;
+    o_ptCodecParam->dwBitsPerSample=sizeof(INT_PCM)*8;
+    o_ptCodecParam->dwSampleRate=ptInfo->sampleRate;
+    o_ptCodecParam->eAudioCodecType=AUDIO_CODEC_TYPE_PCM;
+
+
+	return iDstDecodeBufLen;
 }
 

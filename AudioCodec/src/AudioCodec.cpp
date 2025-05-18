@@ -126,13 +126,17 @@ int AudioCodec::Transcode(unsigned char * i_abSrcBuf,int i_iSrcBufLen,T_AudioCod
     int iRet = -1;
     int iDecodeLen = 0;
     T_AudioCodecParam tCodecParam;
-    
+    int iDecodeBufMaxLen = 0;
+
     if(NULL == o_abDstBuf)
     {
         AC_LOGE("Transcode err NULL%d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
         return iRet;
     }
     memset(&tCodecParam,0,sizeof(T_AudioCodecParam));
+    iDecodeBufMaxLen = i_iSrcBufLen*20;
+    if(iDecodeBufMaxLen<2048)
+        iDecodeBufMaxLen=2048;//防止aac不够
     if(NULL == m_ptDecoder)
     {
         iRet = InitDecode(i_tSrcCodecParam.eAudioCodecType);
@@ -145,8 +149,8 @@ int AudioCodec::Transcode(unsigned char * i_abSrcBuf,int i_iSrcBufLen,T_AudioCod
     if(NULL != i_abSrcBuf)
     {
         if(NULL == m_pbDecodeBuf)
-            m_pbDecodeBuf=new unsigned char [i_iSrcBufLen*12];
-        iRet = Decode(i_abSrcBuf,i_iSrcBufLen,m_pbDecodeBuf,i_iSrcBufLen*12,&tCodecParam);
+            m_pbDecodeBuf=new unsigned char [iDecodeBufMaxLen];
+        iRet = Decode(i_abSrcBuf,i_iSrcBufLen,m_pbDecodeBuf,iDecodeBufMaxLen,&tCodecParam);
         if(iRet <= 0)
         {
             AC_LOGE("Transcode Decode err %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
@@ -193,7 +197,7 @@ int AudioCodec::Transcode(unsigned char * i_abSrcBuf,int i_iSrcBufLen,T_AudioCod
         iRet = InitEncode(i_tDstCodecParam);//解码出来的数据认为都是pcm裸数据，所以直接编码
         if(iRet < 0)
         {
-            AC_LOGE("Transcode InitEncode err %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
+            AC_LOGE("Transcode InitEncode err %d,%d\r\n",iDecodeBufMaxLen,i_iDstBufMaxLen);
             return iRet;
         }
     }
@@ -202,26 +206,26 @@ int AudioCodec::Transcode(unsigned char * i_abSrcBuf,int i_iSrcBufLen,T_AudioCod
         iRet = Encode(NULL,0,o_abDstBuf,i_iDstBufMaxLen);
         if(iRet<0)
         {
-            AC_LOGE("Transcode Encode NULL err %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
+            AC_LOGE("Transcode Encode NULL err %d,%d\r\n",iDecodeBufMaxLen,i_iDstBufMaxLen);
             return iRet;
         }
         if(iRet==0)
         {
-            AC_LOGD("Transcode Encode NULL data no enough %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
+            AC_LOGD("Transcode Encode NULL data no enough %d,%d\r\n",iDecodeBufMaxLen,i_iDstBufMaxLen);
             return iRet;
         }
         return iRet;
     }
-    iDecodeLen = ((CodecPCM *)m_pRawDataHandle)->TransSampleRate(m_pbDecodeBuf,iDecodeLen,i_iSrcBufLen*12);
+    iDecodeLen = ((CodecPCM *)m_pRawDataHandle)->TransSampleRate(m_pbDecodeBuf,iDecodeLen,iDecodeBufMaxLen);
     iRet = Encode(m_pbDecodeBuf,iDecodeLen,o_abDstBuf,i_iDstBufMaxLen);
     if(iRet<0)
     {
-        AC_LOGE("Transcode Encode err %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
+        AC_LOGE("Transcode Encode err %d,%d\r\n",iDecodeBufMaxLen,i_iDstBufMaxLen);
         return iRet;
     }
     if(iRet==0)
     {
-        AC_LOGD("Transcode Encode data no enough %d,%d\r\n",i_iSrcBufLen,i_iDstBufMaxLen);
+        AC_LOGD("Transcode Encode data no enough %d,%d\r\n",iDecodeBufMaxLen,i_iDstBufMaxLen);
         return iRet;
     }
 	return iRet;
