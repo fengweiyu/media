@@ -7,7 +7,7 @@
 
   <body>
     
-    <script type="text/javascript" src="./build/MediaConvert.js"></script>
+    <!--script type="text/javascript" src="./build/MediaConvert.js"></script-->
     <center>
         <h1><a href="">MediaConvert.js demo</a></h1>
     </center>
@@ -24,7 +24,7 @@
             <input type="checkbox" name="options" value="flv" > flv  
         </label>  
         <label>  
-            <input type="checkbox" name="options" value="mp4" checked> mp4  
+            <input type="checkbox" name="options" value="mp4" checked> mp4(硬解)  
         </label>  
         <label>  
             <input type="checkbox" name="options" value="VideoRaw"> VideoRaw  
@@ -32,14 +32,41 @@
         <label>  
             <input type="checkbox" name="options" value="AudioRaw"> AudioRaw  
         </label> 
+        <label>  
+            <input type="checkbox" name="options" value="OriginalData"> 软解  
+        </label> 
         <br><br>
         <button id="saveButton" disabled>格式转换</button>
         <br><br>
+        <select id="videoCodec">  
+            <option value="h264">h264</option>   
+        </select>
+        <label>  
+            <input id="videoCodecChange" type="checkbox" name="videoCodecChange" value="videoCodecChange"> 视频转码 
+        </label>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <select id="audioCodec">  
+            <option value="aac">aac</option>   
+            <option value="g711a">g711a</option>
+        </select>
+        <select id="audioCodecSampleRate">  
+            <option value="44100">44100</option>   
+            <option value="8000">8000</option>
+        </select>
+        <label>  
+            <input id="audioCodecChange" type="checkbox" name="audioCodecChange" value="audioCodecChange"> 音频转码 
+        </label>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <textarea name="" id="markInput" cols="30" rows="1"></textarea>
+        <label>  
+            <input id="mark" type="checkbox" name="mark" value="shuiying"> 水印 
+        </label> 
+        <br><br>
         <video id="localVideoElement" playsinline controls autoplay muted style="width: 80%;height: auto;display: none;"></video>
+        <canvas id="myCanvas" style="width: 80%;height: auto;display: none;"></canvas>
     </center>
-
     <script type="module">
-        import convert from './convert.js';
+        import player from './player.js';
 
         // 获取所有复选框  
         const checkboxes = document.querySelectorAll('input[type="checkbox"][name="options"]');  
@@ -59,13 +86,30 @@
                 }  
             });  
         });  
+
+        const selectVideoCodec = document.getElementById('videoCodec');  
+        const selectAudioCodec = document.getElementById('audioCodec');  
+        const selectAudioCodecSampleRate = document.getElementById('audioCodecSampleRate');
+        const videoCodecChangeChecked = document.getElementById('videoCodecChange');
+        const audioCodecChangeChecked = document.getElementById('audioCodecChange');
+        
+
+        const markChecked = document.getElementById('mark');
+        const markInput = document.getElementById('markInput');
+        const mark = 'yuweifeng08016';  
+        markInput.value = mark; 
         const fileInput = document.getElementById('fileInput');  
         const saveButton = document.getElementById('saveButton');  
         const localVideoElement = document.getElementById('localVideoElement');
-        var mConvert = new convert();
+        var canvasElement = document.getElementById('myCanvas'); 
+        var oPlayer = new player();
         let arrayBuffer;  
         let filename;
         let filetype;
+        // 分块处理文件
+        const arrayBufferChunkSize = 50 * 1024; // 节约wasm的内存，防止一次转换太多，没有及时取出导致的内存占用过多
+        let arrayBufferOffset = 0;
+
         fileInput.addEventListener('change', function(event) 
         {  
             const file = event.target.files[0]; // 获取选中的文件  
@@ -98,10 +142,39 @@
             console.log('file addEventListener:'+filename+' type:'+filetype+' byteLength:'+arrayBuffer.byteLength);    
             // 选择所有的复选框  
             //Module.onRuntimeInitialized = function() 
-            mConvert.attachMediaElement(localVideoElement);
-            mConvert.process(arrayBuffer,filename,filetype,GetDstName());
+            Process();
         }); 
+        function Process() 
+        {
+            if (!oPlayer.getInitedFlag())
+            {
+                setTimeout(Process, 100); // 10ms一次  //只会执行一次，不像 setInterval 会反复执行。
+                return;
+            }
+            oPlayer.attachMediaElement(localVideoElement,canvasElement,markInput.value,markChecked.checked,true);
+            oPlayer.setTransCodec(videoCodecChangeChecked.checked,selectVideoCodec.value,audioCodecChangeChecked.checked,selectAudioCodec.value,selectAudioCodecSampleRate.value);
+            //mConvert.process(arrayBuffer,filename,filetype,GetDstName());
+            ConvertProcessWithChunk();           
+            oPlayer.play();
+        }
+        function ConvertProcessWithChunk() 
+        {
+            if (arrayBufferOffset >= arrayBuffer.byteLength) 
+            {
+                console.warn('File processing complete.');
+                oPlayer.close();
+                return;
+            }
 
+            const chunk = arrayBuffer.slice(arrayBufferOffset, arrayBufferOffset + arrayBufferChunkSize);//arrayBuffer.slice(begin, end);  
+            arrayBufferOffset += arrayBufferChunkSize;
+
+            // 输入数据块进行转换
+            oPlayer.process(chunk,filename,filetype,GetDstName());//，内部转换大约需要10ms一帧
+            // 继续处理下一个数据块
+
+            setTimeout(ConvertProcessWithChunk, 10); // 10ms一次  //只会执行一次，不像 setInterval 会反复执行。
+        }
         function GetDstName()
         {
             const selectedHobbies = [];  
