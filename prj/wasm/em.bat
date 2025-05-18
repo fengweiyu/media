@@ -13,6 +13,7 @@ mkdir build
 cd build
 copy ..\..\prj\wasm\ninja.exe ninja.exe
 ::emcmake cmake -GNinja ..\..\..\ -DPRI=SUPPORT
+::emcmake cmake -GNinja ..\..\..\ -DPRI=SUPPORT -DCODEC=SUPPORT
 emcmake cmake -GNinja ..\..\
 pause
 ninja
