@@ -154,9 +154,6 @@ class player
 		}
 		else
 		{
-			if(null != this.m_MediaElement)
-				this.m_MediaElement.src = URL.createObjectURL(this.m_MediaSource); 
-			this.m_MediaSource.addEventListener('sourceopen', this.MediaSourceHandle.bind(this));
 			this.playMedia();//
 		}
     }
@@ -191,25 +188,50 @@ class player
 		}
 		else if('close' == msg.res)
 		{//由于转码耗时，close是最后发的，收到close表示完成转码，再下载
-			if(this.m_DownBuffer.length>0)
-			{
-				DownloadMedia(this.m_DownBuffer,this.m_SrcName+this.m_DstName);
-				this.m_DownBuffer=null;
-				console.warn('DownloadMedia '+this.m_SrcName+this.m_DstName);
-			}
+			this.closeHandle();
 		}
 		else
 		{
 			console.error('Invalid res '+msg.res);
 		}
     }
+	closeHandle()
+	{
+		if (this.m_BufferQueue.length > 0)
+		{
+			setTimeout(this.closeHandle.bind(this), 10);//等待m_DownBuffer接收处理完毕
+			return;
+		}
+
+		if(this.m_DownBuffer.length>0)
+		{
+			DownloadMedia(this.m_DownBuffer,this.m_SrcName+this.m_DstName);
+			this.m_DownBuffer=null;
+			console.warn('DownloadMedia '+this.m_SrcName+this.m_DstName);
+		}
+	}
 	playMedia() 
     {
-		if(".OriginalData" != this.m_DstName)
+		if(".OriginalData" == this.m_DstName)
 		{
-			this.MediaSourceHandle();
-			setTimeout(this.playMedia.bind(this), 10);//
+			console.error('Invalid m_DstName '+this.m_DstName);
+			return;
 		}
+		if (this.m_BufferQueue.length <= 0) 
+		{
+			setTimeout(this.playMedia.bind(this), 10);//
+			return;
+		}
+		if(".mp4" == this.m_DstName)
+		{
+			if(null != this.m_MediaElement)
+				this.m_MediaElement.src = URL.createObjectURL(this.m_MediaSource); 
+			this.m_MediaSource.addEventListener('sourceopen', this.MediaSourceOpen.bind(this));
+			return;
+		}
+		//其他格式
+		this.MediaSourceHandle();
+		setTimeout(this.playMedia.bind(this), 10);//
     }
 	playVideo() 
 	{  
@@ -354,59 +376,14 @@ class player
 	{  
 		//this.convert(this.m_SrcBuffer,this.m_SrcType,this.m_DstName);//OriginalData
         var convertedChunk = null; 
-        while (this.m_BufferQueue.length > 0) 
+        if (this.m_BufferQueue.length > 0) 
         {//{ data: convertedChunk,vEncode,aEncode,haveKeyFrame,startTime,durationTime,videoCnt,audioCnt,iEncType,iFrameType,dwFrameTimeStamp,width,height,dwSampleRate};
-            const dequeuedObject = this.m_BufferQueue.shift(); // 从队列中取出一个数据块
+            const dequeuedObject = this.m_BufferQueue.shift(); // 从队列中取出一个数据块 
             convertedChunk=dequeuedObject.data;
-			var v = dequeuedObject.vEncode;
-			var a = dequeuedObject.aEncode;
 			if (convertedChunk) 
 			{ // 成功创建，输出内容
 				if(this.m_DstName == ".mp4")
 				{
-					if(null == this.m_SourceBuffer)
-					{// codecs="avc1.42E01E, mp4a.40.2" h264 aac   
-						var VideoCodec=null;
-						var AudioCodec=null;
-
-						if (v.includes("h264"))//video/webm; codecs="avc1.64001E"：用于 WebM 容器中的 H.264 视频（通常则使用 VP8 或 VP9）。
-						{//video/mp4; codecs="avc1.64001E"：用于 MP4 容器中的 H.264 视频。
-							VideoCodec="avc1.42E01E";//avc1.42E01E
-						}//video/mp2t; codecs="avc1.42E01E"：用于 MPEG-TS 容器中的 H.264 视频
-						else if (v.includes("h265"))
-						{//video/mp4; codecs="hevc"：用于 MPEG-4 容器格式中的 H.265 视频。
-							VideoCodec="hvc1.1.6.L93.B0";
-						}//用于传输流（如 TS 或 MPEG-TS）编码中的 H.265 视频。
-						if (a.includes("aac"))
-						{
-							AudioCodec="mp4a.40.2";//audio/mp4; codecs="mp4a.40.2"：这是一般用于 MP4 容器中的 AAC 音频格式。
-						}//audio/aac：用于裸 AAC 数据。
-						else if(a.includes("g711a"))
-						{
-							AudioCodec="alaw";//audio/mp4; codecs="law"：表示使用 G.711 A-law 编码的音频数据。
-						}//audio/g711：用于直接表示 G.711 编码的数据。
-						if(null != VideoCodec && null !=AudioCodec)
-						{
-							this.m_SourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+VideoCodec+','+AudioCodec+'"');
-							this.m_MediaElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
-						}
-						else if(null != VideoCodec)
-						{
-							this.m_SourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+VideoCodec+'"');
-							this.m_MediaElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
-						}
-						else if(null != AudioCodec)
-						{
-							this.m_SourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+AudioCodec+'"');
-							this.m_MediaElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
-						}
-						else
-						{
-							console.log('GetMediaDstEnc err v '+VideoCodec+' a '+AudioCodec);    
-						}
-						if(null != this.m_SourceBuffer)
-							this.m_SourceBuffer.addEventListener('updateend', this.MediaSourceHandle.bind(this));
-					}
 					try {
 						this.m_SourceBuffer.appendBuffer(convertedChunk);
 					} catch (error) {
@@ -429,28 +406,104 @@ class player
 						}
 					}
 				}
-
-				/*try {
-					this.m_SourceBuffer.appendBuffer(convertedChunk);
-				} catch (error) {
-					console.error('Failed to append buffer:', error);
-					//this.m_Queue.unshift({ data, srcType, dstType }); // 如果失败，将数据块重新放回队列
-				}*/
-
 			} 
 			else
 			{// 处理未成功创建的情况 
 				console.log('FormatConvert err'); 
 			} 			
         }
-
-		/*sourceBuffer.addEventListener('updateend', function() {  
-			if (!sourceBuffer.updating) {  
-				//mediaSource.endOfStream();  
-				//localVideoElement.play();  
-			}  
-		}); */
 	}
+
+	MediaSourceOpen()
+	{  
+		if(this.m_DstName != ".mp4")
+		{
+			console.log('MediaSourceOpen err'); 
+			return;
+		}  
+		if(null != this.m_SourceBuffer)
+		{
+			console.warn('MediaSourceOpen already open'); 
+			return;
+		} 
+		var convertedChunk = null; 
+        if (this.m_BufferQueue.length > 0) 
+        {//{ data: convertedChunk,vEncode,aEncode,haveKeyFrame,startTime,durationTime,videoCnt,audioCnt,iEncType,iFrameType,dwFrameTimeStamp,width,height,dwSampleRate};
+            const dequeuedObject = this.m_BufferQueue[0]; //this.m_BufferQueue[0];// 读取队列头部元素，不删除 //this.m_BufferQueue.shift(); // 从队列中取出一个数据块 
+            convertedChunk=dequeuedObject.data;
+			var v = dequeuedObject.vEncode;
+			var a = dequeuedObject.aEncode;
+			if (convertedChunk) 
+			{ // 成功创建，输出内容			
+				// codecs="avc1.42E01E, mp4a.40.2" h264 aac   
+				var VideoCodec=null;
+				var AudioCodec=null;
+
+				if (v.includes("h264"))//video/webm; codecs="avc1.64001E"：用于 WebM 容器中的 H.264 视频（通常则使用 VP8 或 VP9）。
+				{//video/mp4; codecs="avc1.64001E"：用于 MP4 容器中的 H.264 视频。
+					VideoCodec="avc1.42E01E";//avc1.42E01E
+				}//video/mp2t; codecs="avc1.42E01E"：用于 MPEG-TS 容器中的 H.264 视频
+				else if (v.includes("h265"))
+				{//video/mp4; codecs="hevc"：用于 MPEG-4 容器格式中的 H.265 视频。
+					VideoCodec="hvc1.1.6.L93.B0";
+				}//用于传输流（如 TS 或 MPEG-TS）编码中的 H.265 视频。
+				if (a.includes("aac"))
+				{
+					AudioCodec="mp4a.40.2";//audio/mp4; codecs="mp4a.40.2"：这是一般用于 MP4 容器中的 AAC 音频格式。
+				}//audio/aac：用于裸 AAC 数据。
+				else if(a.includes("g711a"))
+				{
+					AudioCodec="alaw";//audio/mp4; codecs="law"：表示使用 G.711 A-law 编码的音频数据。
+				}//audio/g711：用于直接表示 G.711 编码的数据。
+				if(null != VideoCodec && null !=AudioCodec)
+				{
+					this.m_SourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+VideoCodec+','+AudioCodec+'"');
+					this.m_MediaElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
+				}
+				else if(null != VideoCodec)
+				{
+					this.m_SourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+VideoCodec+'"');
+					this.m_MediaElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
+				}
+				else if(null != AudioCodec)
+				{
+					this.m_SourceBuffer = this.m_MediaSource.addSourceBuffer('video/mp4; codecs="'+AudioCodec+'"');
+					this.m_MediaElement.style.display = 'block'; // 显示视频 = 'none'; // 隐藏视频  
+				}
+				else
+				{
+					console.log('GetMediaDstEnc err v '+VideoCodec+' a '+AudioCodec);    
+				}
+				if(null != this.m_SourceBuffer)
+				{
+					//this.m_SourceBuffer.appendBuffer(convertedChunk);//必须放了才会触发updateend
+					//this.m_SourceBuffer.addEventListener('updateend', this.MediaSourceHandle.bind(this));//这种方式会卡,不会往下播放
+					this.mp4Play();
+				}
+			} 
+			else
+			{// 处理未成功创建的情况 
+				console.log('MediaSourceOpen err null'); 
+			} 	
+        }
+	}
+    mp4Play() 
+    {
+		if(null == this.m_SourceBuffer)
+		{
+			return;
+		}
+		var durationTime=10;
+		if (this.m_BufferQueue.length > 0) 
+		{//{ data: convertedChunk,vEncode,aEncode,haveKeyFrame,startTime,durationTime,videoCnt,audioCnt,iEncType,iFrameType,dwFrameTimeStamp,width,height,dwSampleRate};
+			const dequeuedObject = this.m_BufferQueue[0];// 读取队列头部元素，不删除 //this.m_BufferQueue.shift(); // 从队列中取出一个数据块 
+			durationTime=dequeuedObject.durationTime;//必须按照视频分片时间去SourceBuffer.appendBuffer，否则如果慢的放了会转圈，快的放了会报错从而画面卡住不动
+			this.MediaSourceHandle();
+		}
+		setTimeout(this.mp4Play.bind(this), durationTime);
+    }
+
+
     close() 
     {//由于转码耗时，如果这里直接下载，估计转码还没完成，所以发消息让最后收到close完成转码再发回来，再下载
 		this.m_ConvertWorker.postMessage({cmd:'close',data: { SrcName:this.m_SrcName,DstName:this.m_DstName } });
@@ -507,32 +560,37 @@ class player
 			this.m_DownBuffer=this.appendTypedArray(this.m_DownBuffer,convertedChunk.slice(44));
 		}
 		if(this.m_DownBuffer.length>=1*1024*1024)//0*1024*1024
-		{ 
-			const buffer = new ArrayBuffer(44);  
-			const view = new DataView(buffer);  						
-			// RIFF identifier 'RIFF'  
-			this.writeString(view, 0, 'RIFF');  	
-			// file length minus first 8 bytes  
-			view.setUint32(4, 36 + this.m_DownBuffer.length, true);  
-			// RIFF type 'WAVE'  
-			this.writeString(view, 8, 'WAVE');  
-			// format chunk identifier 'fmt '  
-			this.writeString(view, 12, 'fmt ');  
-			view.setUint32(16, 16, true); // chunk size  
-			view.setUint16(20, 1, true); // format (PCM)  
-			view.setUint16(22, 1, true);  
-			view.setUint32(24, 8000, true);  
-			view.setUint32(28, 8000 * 1 * 16 / 8, true); // byte rate  
-			view.setUint16(32, 1 * 16 / 8, true); // block align  
-			view.setUint16(34, 16, true); // bits per sample  
-			// data chunk header  
-			this.writeString(view, 36, 'data');  
-			view.setUint32(40, this.m_DownBuffer.length, true);  
-			const uint8View = new Uint8Array(buffer);  
-			const DownBuffer=this.appendTypedArray(uint8View,this.m_DownBuffer);	
+		{  
+			const DownBuffer=this.PCM2WAV(this.m_DownBuffer);	
 			DownloadMedia(DownBuffer,this.m_SrcName+this.m_DstName);
 			this.m_DownBuffer=null;
 		}	
+	}
+	PCM2WAV(pcmBuffer) 
+	{  
+		const buffer = new ArrayBuffer(44);  
+		const view = new DataView(buffer);  						
+		// RIFF identifier 'RIFF'  
+		this.writeString(view, 0, 'RIFF');  	
+		// file length minus first 8 bytes  
+		view.setUint32(4, 36 + pcmBuffer.length, true);  
+		// RIFF type 'WAVE'  
+		this.writeString(view, 8, 'WAVE');  
+		// format chunk identifier 'fmt '  
+		this.writeString(view, 12, 'fmt ');  
+		view.setUint32(16, 16, true); // chunk size  
+		view.setUint16(20, 1, true); // format (PCM)  
+		view.setUint16(22, 1, true);  
+		view.setUint32(24, 8000, true);  
+		view.setUint32(28, 8000 * 1 * 16 / 8, true); // byte rate  
+		view.setUint16(32, 1 * 16 / 8, true); // block align  
+		view.setUint16(34, 16, true); // bits per sample  
+		// data chunk header  
+		this.writeString(view, 36, 'data');  
+		view.setUint32(40, pcmBuffer.length, true);  
+		const uint8View = new Uint8Array(buffer);  
+		const retBuffer=this.appendTypedArray(uint8View,pcmBuffer);
+		return retBuffer;	
 	}
 	writeString(view, offset, string) 
 	{  
