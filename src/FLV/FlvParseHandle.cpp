@@ -106,7 +106,7 @@ int FlvParseHandle::GetFrameData(int i_iDataOffset,T_MediaFrameInfo *m_ptFrame)
     iRet = this->FlvReadTag(m_ptFrame->pbFrameBuf+i_iDataOffset,m_ptFrame->iFrameBufLen-i_iDataOffset,&tFlvTag);
     if(iRet <= 0)
     {
-        MH_LOGE("FlvReadTag err %d\r\n",iRet);
+        MH_LOGD("FlvReadTag err %d\r\n",iRet);
         return iRet;
     }
     iProcessedLen+=iRet;//包括整个tag的长度，tag header+body //解析出一个tag才可跳过
@@ -1127,7 +1127,7 @@ int FlvParseHandle::FlvReadTag(unsigned char* i_pbBuf,unsigned int i_dwLen,T_Flv
 
 	if (i_dwLen < tFlvTagHeader.dwSize+FLV_TAG_HEADER_LEN|| (0 != o_ptFlvTag->dwDataMaxLen&&o_ptFlvTag->dwDataMaxLen < tFlvTagHeader.dwSize))
     {
-        MH_LOGE("FlvReadTagHeader err i_dwLen%d,dwSize%d,dwDataMaxLen%d \r\n", i_dwLen,tFlvTagHeader.dwSize,o_ptFlvTag->dwDataMaxLen);
+        MH_LOGD("FlvReadTagHeader err i_dwLen%d,dwSize%d,dwDataMaxLen%d \r\n", i_dwLen,tFlvTagHeader.dwSize,o_ptFlvTag->dwDataMaxLen);
         return -1;
     }
 	if(0 != tFlvTagHeader.dwStreamId)

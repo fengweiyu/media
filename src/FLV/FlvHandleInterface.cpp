@@ -158,7 +158,7 @@ int FlvHandleInterface::GetFrame(T_MediaFrameInfo *m_ptFrame)
         iRet=m_pFlvParseHandle->GetFrameData(iProcessedLen,m_ptFrame);
         if(iRet <= 0)
         {
-            MH_LOGE("m_pFlvHandle->GetFrameData err %d %d\r\n",iProcessedLen,iRet);
+            MH_LOGD("m_pFlvHandle->GetFrameData err %d %d\r\n",iProcessedLen,iRet);
             break;//iRet < 0 ,iProcessedLen 也可能大于0，因为这里是循环
         }
         iProcessedLen+=iRet;

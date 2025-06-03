@@ -28,7 +28,7 @@
 #else
 #define  MH_LOGW(...)     printf(__VA_ARGS__)
 #define  MH_LOGE(...)     printf(__VA_ARGS__)
-#define  MH_LOGD(...)     printf(__VA_ARGS__)
+#define  MH_LOGD(...)     //printf(__VA_ARGS__)
 #define  MH_LOGI(...)     printf(__VA_ARGS__)
 #endif
 
