@@ -456,7 +456,7 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
         {//如果每次都传入一个足够大的缓存，则不需要统计 iPutFrameLen这么麻烦
             pbOutBuf = new DataBuf(m_iPutFrameLen+MEDIA_FORMAT_MAX_LEN);//但是每次(帧)都这么大的缓存，如果不能及时释放则内存容易耗尽
         }//带音频不能非gop分段，否则出错(web播着会一直卡顿不出流)
-        iWriteLen = m_oMediaHandle.FrameToContainer(ptFrameInfo,i_eDstStreamType,pbOutBuf->pbBuf,pbOutBuf->iBufMaxLen,&iHeaderLen,m_dwPutVideoFrameTime>=600?0:0);
+        iWriteLen = m_oMediaHandle.FrameToContainer(ptFrameInfo,i_eDstStreamType,pbOutBuf->pbBuf,pbOutBuf->iBufMaxLen,&iHeaderLen,m_dwPutVideoFrameTime>=600?1:0);
         if(iWriteLen < 0)
         {
             printf("FrameToContainer err iWriteLen %d iFrameProcessedLen[%d]\r\n",iWriteLen,ptFrameInfo->iFrameProcessedLen);
@@ -475,7 +475,7 @@ int MediaConvert::Convert(unsigned char * i_pbSrcData,int i_iSrcDataLen,E_MediaE
             }//如果每次都传入一个足够大的缓存，则不需要这么麻烦
             continue;
         }
-        if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME)
+        //if(tFileFrameInfo.eFrameType == MEDIA_FRAME_TYPE_VIDEO_I_FRAME)
             printf("FrameToContainer%d m_dwPutVideoFrameTime %u Len %d iWriteLen %d ProcessedLen[%d] iBufMaxLen[%d]\r\n",m_iPutVideoFrameCnt,m_dwPutVideoFrameTime,m_iPutFrameLen,iWriteLen,tFileFrameInfo.iFrameProcessedLen,pbOutBuf->iBufMaxLen);
         pbOutBuf->iBufLen=iWriteLen;
         m_tSegInfo.iSegDurationTime=ptFrameInfo->dwTimeStamp-m_tSegInfo.iSegStartTime;
@@ -2212,12 +2212,16 @@ int InputData(unsigned char * i_pbSrcData,int i_iSrcDataLen,const char *i_strSrc
         eSrcStreamType=STREAM_TYPE_AUDIO_STREAM;
         eSrcEncType=MEDIA_ENCODE_TYPE_AAC;
     }
+    else if(NULL != strstr(i_strSrcName,"wav"))
+    {
+        eSrcStreamType=STREAM_TYPE_WAV_STREAM;
+    }
     else
     {
         printf("i_strSrcName %s err\r\n",i_strSrcName);
         return -1;
     }
-    printf("Convert %d ,%s to %s\r\n",i_iSrcDataLen,i_strSrcName,i_strDstName);
+    //printf("Convert %d ,%s to %s\r\n",i_iSrcDataLen,i_strSrcName,i_strDstName);
     return MediaConvert::Instance()->Convert(i_pbSrcData,i_iSrcDataLen,eSrcEncType,eSrcStreamType,eDstStreamType);
 }
 
