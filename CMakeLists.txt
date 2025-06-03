@@ -83,6 +83,8 @@ message("PROJECT_SOURCE_DIR is: ${PROJECT_SOURCE_DIR} ${CMAKE_INSTALL_PREFIX}")
 # 收集所有源文件  
 file(GLOB src_list 
     src/MediaHandle.cpp
+    src/WAV/WAVInterface.cpp
+    src/WAV/WAV.cpp
     src/TS/TsInterface.cpp
     src/TS/TsPack.cpp
     src/FMP4/FMP4HandleInterface.cpp
@@ -106,10 +108,12 @@ add_library(media ${src_list})
 target_include_directories(media PUBLIC
     ${PROJECT_SOURCE_DIR}/src
 	${PROJECT_SOURCE_DIR}/src/include
-    ${PROJECT_SOURCE_DIR}/src/FLV/include
-    ${PROJECT_SOURCE_DIR}/src/FLV
+    ${PROJECT_SOURCE_DIR}/src/WAV/include
+    ${PROJECT_SOURCE_DIR}/src/WAV
     ${PROJECT_SOURCE_DIR}/src/TS/include
     ${PROJECT_SOURCE_DIR}/src/TS
+    ${PROJECT_SOURCE_DIR}/src/FLV/include
+    ${PROJECT_SOURCE_DIR}/src/FLV
     ${PROJECT_SOURCE_DIR}/src/FMP4/include
     ${PROJECT_SOURCE_DIR}/src/FMP4
 )
