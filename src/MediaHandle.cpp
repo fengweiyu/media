@@ -18,6 +18,7 @@
 #include "FlvHandleInterface.h"
 #include "FMP4HandleInterface.h"
 #include "TsInterface.h"
+#include "WAVInterface.h"
 
 using std::cout;//ะ่าช<iostream>
 using std::endl;
@@ -444,7 +445,13 @@ int MediaHandle::GetFrame(T_MediaFrameInfo *m_ptFrame)
             m_pMediaHandle=new FlvHandleInterface();
         }
     }
-
+    if(STREAM_TYPE_WAV_STREAM == m_ptFrame->eStreamType)
+    {
+        if(NULL == m_pMediaHandle)
+        {
+            m_pMediaHandle=new WAVInterface();
+        }
+    }
 
     if(NULL != m_pMediaHandle)
     {
@@ -488,6 +495,14 @@ int MediaHandle::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamType i_eSt
     
     switch(i_eStreamType)
     {
+        case STREAM_TYPE_WAV_STREAM :
+        {
+            if(NULL == m_pMediaPackHandle)
+            {
+                m_pMediaPackHandle=new WAVInterface();
+            }
+            break;
+        }
         case STREAM_TYPE_TS_STREAM :
         {
             if(NULL == m_pMediaPackHandle)

@@ -37,6 +37,7 @@ typedef enum
     STREAM_TYPE_ENHANCED_FLV_STREAM,
     STREAM_TYPE_FMP4_STREAM,
     STREAM_TYPE_TS_STREAM,
+    STREAM_TYPE_WAV_STREAM,
 }E_StreamType;
 
 typedef enum

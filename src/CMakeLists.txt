@@ -15,6 +15,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 SET(src_list
     MediaHandle.cpp
+    WAV/WAVInterface.cpp
+    WAV/WAV.cpp
     TS/TsInterface.cpp
     TS/TsPack.cpp
     FMP4/FMP4HandleInterface.cpp
@@ -29,10 +31,12 @@ SET(src_list
 	)		
 INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}
 	${PROJECT_SOURCE_DIR}/include
-    ${PROJECT_SOURCE_DIR}/FLV/include
-    ${PROJECT_SOURCE_DIR}/FLV
+    ${PROJECT_SOURCE_DIR}/WAV/include
+    ${PROJECT_SOURCE_DIR}/WAV
     ${PROJECT_SOURCE_DIR}/TS/include
     ${PROJECT_SOURCE_DIR}/TS
+    ${PROJECT_SOURCE_DIR}/FLV/include
+    ${PROJECT_SOURCE_DIR}/FLV
     ${PROJECT_SOURCE_DIR}/FMP4/include
     ${PROJECT_SOURCE_DIR}/FMP4
 	)
