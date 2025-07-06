@@ -226,6 +226,7 @@ int WAV::GetFrameData(T_MediaFrameInfo *m_ptFrame)
 	m_ptFrame->pbFrameStartPos=m_ptFrame->pbFrameBuf+m_ptFrame->iFrameProcessedLen+sizeof(T_WavHeader);
     iRet = tWavHeader.dwSubChunk2Size+sizeof(T_WavHeader);
     m_ptFrame->iFrameProcessedLen+=iRet;
+    m_ptFrame->iFrameLen=tWavHeader.dwSubChunk2Size;
 	return iRet;
 }
 
