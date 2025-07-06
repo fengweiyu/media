@@ -83,7 +83,7 @@ int FlvHandle::SpsToH265Extradata(unsigned char *i_pbSpsData,unsigned short i_wS
         return iRet;
     }
     memset(abSodbSPS,0,sizeof(abSodbSPS));
-    iSodbLen = DecodeEBSP(i_pbSpsData, i_wSpsLen, abSodbSPS);
+    iSodbLen = DecodeEBSP(i_pbSpsData, i_wSpsLen, abSodbSPS,sizeof(abSodbSPS));
     if (iSodbLen < 12+3)
         return iRet;
     sps_max_sub_layers_minus1 = (abSodbSPS[2] >> 1) & 0x07;
@@ -136,19 +136,29 @@ int FlvHandle::SpsToH265Extradata(unsigned char *i_pbSpsData,unsigned short i_wS
 * -----------------------------------------------
 * 2023/09/21      V1.0.0         Yu Weifeng       Created
 ******************************************************************************/
-int FlvHandle::DecodeEBSP(unsigned char* nalu, int bytes, unsigned char* sodb)
+int FlvHandle::DecodeEBSP(unsigned char* nalu, int bytes, unsigned char* sodb, int maxlenSODB)
 {
     int i, j;
     for (j = i = 0; i < bytes; i++)
     {
         if (i + 2 < bytes && 0 == nalu[i] && 0 == nalu[i + 1] && 0x03 == nalu[i + 2])
         {
+            if(j+2>maxlenSODB)
+            {
+                MH_LOGE("sodb not enough %d %d \r\n", bytes,bytes);
+                return -1;
+            }
             sodb[j++] = nalu[i];
             sodb[j++] = nalu[i + 1];
             i += 2;
         }
         else
         {
+            if(j+1>maxlenSODB)
+            {
+                MH_LOGE("sodb not enough2 %d %d \r\n", bytes,bytes);
+                return -1;
+            }
             sodb[j++] = nalu[i];
         }
     }

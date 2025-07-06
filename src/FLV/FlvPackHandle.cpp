@@ -1027,7 +1027,7 @@ int FlvPackHandle::VpsToH265Extradata(unsigned char *i_pbVpsData,unsigned short 
         return iRet;
     }
     memset(abSodbVPS,0,sizeof(abSodbVPS));
-    iSodbLen = DecodeEBSP(i_pbVpsData, i_wVpsLen, abSodbVPS);
+    iSodbLen = DecodeEBSP(i_pbVpsData, i_wVpsLen, abSodbVPS,sizeof(abSodbVPS));
     if (iSodbLen < 16 + 2)
         return iRet;
     vps_max_sub_layers_minus1 = (abSodbVPS[3] >> 1) & 0x07;

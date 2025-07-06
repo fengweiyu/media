@@ -923,7 +923,7 @@ int FlvParseHandle::SpsToH264Resolution(unsigned char *i_pbSpsData,unsigned shor
         return iRet;
     }
     memset(abSodbSPS,0,sizeof(abSodbSPS));
-    iSodbLen = DecodeEBSP(i_pbSpsData, i_wSpsLen, abSodbSPS);
+    iSodbLen = DecodeEBSP(i_pbSpsData, i_wSpsLen, abSodbSPS,sizeof(abSodbSPS));
     if (iSodbLen < 12+3)
         return iRet;
     profile_idc = abSodbSPS[1] ;

@@ -108,7 +108,7 @@ public:
     FlvHandle();
     ~FlvHandle();
     int SpsToH265Extradata(unsigned char *i_pbSpsData,unsigned short i_wSpsLen,T_FlvH265Extradata *o_ptH265Extradata);
-    int DecodeEBSP(unsigned char* nalu, int bytes, unsigned char* sodb);
+    int DecodeEBSP(unsigned char* nalu, int bytes, unsigned char* sodb, int maxlenSODB);
     int HevcProfileTierLevel(unsigned char* nalu, int bytes, unsigned char maxNumSubLayersMinus1,T_FlvH265Extradata* hevc);
     unsigned int H264ReadBitByUE(unsigned char* data, int bytes, int* offset);
 private:
