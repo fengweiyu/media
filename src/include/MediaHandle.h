@@ -162,6 +162,7 @@ typedef struct MediaFrameInfo
     T_VideoEncodeParam tVideoEncodeParam;
     T_AudioEncodeParam tAudioEncodeParam;
     int iFrameRate;//Ö¡ÂÊ
+    int iRotationDegrees;//Ðý×ª½Ç¶È 0 0 , 90 1 , 180 2 , 270 3
 }T_MediaFrameInfo;
 
 /*****************************************************************************

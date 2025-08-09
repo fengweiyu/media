@@ -161,6 +161,7 @@ typedef struct FMP4SampleInfo
     T_AudioSampleEncParam tAudioEncParam;
 	unsigned char abEncExtraData[512];
 	int iEncExtraDataLen;
+	E_FMP4_ROTATION_DEGREES eRotationDegrees;
 }T_FMP4SampleInfo;//FMP4FrameInfo
 
 typedef struct FMP4TrackInfo
@@ -1740,6 +1741,25 @@ private:
 /*****************************************************************************
 -Class          : FMP4TkhdBox( Track Header Box)
 -Description    : Level 3,第三级，
+matrix 字段是一个 3x3 矩阵 但它以 9 个 32 位整数
+（（a, b, c, d, u, v）通常是 16.16 定点数(x, y,w）通常是 2.30 定点数）的形式存储
+| a  b  u |
+| c  d  v |
+| x  y  w |
+(a, b, c, d) 负责旋转和缩放。
+(u, v) 负责平移。
+(x, y, w) 是透视变换，通常 x=0, y=0, w=1。
+| cos(theta)  -sin(theta)   0 |
+| sin(theta)   cos(theta)   0 |
+| 0            0            1 |
+a=0x00010000 这个是 16.16 定点数 表示 1
+d = 0x00010000 这个是 16.16 定点数 表示 1
+w = 0x40000000 这个是 2.30 定点数它的值是 1.0 w 是矩阵的最后一个元素，通常表示透视变换的因子。对于非透视变换，它通常是 1.0
+当 theta = 180 度时，cos(180) = -1，sin(180) = 0。
+| -1   0   0 |
+| 0   -1   0 |
+| 0    0   1 |
+
 * Modify Date     Version        Author           Modification
 * -----------------------------------------------
 * 2023/11/21      V1.0.0         Yu Weifeng       Created
@@ -1756,9 +1776,10 @@ public:
         memcpy(FMP4FullBaseBox::m_acBoxType,"tkhd",sizeof(FMP4FullBaseBox::m_acBoxType));
         
 	};
-	int SetParams(unsigned char i_bFlags,unsigned int i_dwTrackID,unsigned short i_wVolume,unsigned int i_dwWidth,unsigned int i_dwHeight,unsigned int i_dwCreationTime=0,unsigned int i_dwModificationTime=0) 
+	int SetParams(unsigned char i_bFlags,unsigned int i_dwTrackID,unsigned short i_wVolume,unsigned int i_dwWidth,unsigned int i_dwHeight,
+	E_FMP4_ROTATION_DEGREES i_eDegrees=FMP4_ROTATION_DEGREES_0,unsigned int i_dwCreationTime=0,unsigned int i_dwModificationTime=0) 
 	{
-        FMP4_LOGW("FMP4TkhdBox SetParams %d,%d,i_dwWidth %d,i_dwHeight %d\r\n",i_dwTrackID,i_wVolume,i_dwWidth,i_dwHeight);
+        FMP4_LOGW("FMP4TkhdBox SetParams %d,%d,i_dwWidth %d,i_dwHeight %d,i_eDegrees %d\r\n",i_dwTrackID,i_wVolume,i_dwWidth,i_dwHeight,i_eDegrees);
 		FMP4FullBaseBox::m_abFlags[2] = i_bFlags;
 		if(i_dwCreationTime != 0)
             m_dwCreationTime = i_dwCreationTime;
@@ -1768,6 +1789,21 @@ public:
         m_wVolume = i_wVolume;
         m_dwWidth = i_dwWidth<< 16;
         m_dwHeight = i_dwHeight<< 16;
+        if(i_eDegrees==FMP4_ROTATION_DEGREES_90)
+        {
+            m_adwMatrix[1]=0xFFFF0000;//b = 0xFFFF0000 (对应 -1.0)
+            m_adwMatrix[3]=0x00010000;//c = 0x00010000 (对应 1.0)
+        }
+        else if(i_eDegrees==FMP4_ROTATION_DEGREES_180)
+        {
+            m_adwMatrix[0]=0xFFFF0000;//a = 0xFFFF0000 (对应 -1.0)
+            m_adwMatrix[4]=0xFFFF0000;//d = 0xFFFF0000 (对应 -1.0)
+        }
+        else if(i_eDegrees==FMP4_ROTATION_DEGREES_270)
+        {
+            m_adwMatrix[1]=0x00010000;//b = 0x00010000 (对应 1.0)
+            m_adwMatrix[3]=0xFFFF0000;//c = 0xFFFF0000 (对应 -1.0)
+        }
         return 0;
 	};
     int ToBits(unsigned char *o_pbBuf,unsigned int i_dwMaxBufLen)
@@ -2490,7 +2526,7 @@ public:
             m_Mdia.m_Hdlr.SetParams(i_dwTrakHandlerType,(char *)"VideoHandler");
             m_Mdia.SetParams(i_dwTrakHandlerType);
             m_Tkhd.SetParams(FMP4_TKHD_FLAG_TRACK_ENABLE|FMP4_TKHD_FLAG_TRACK_IN_MOVIE,i_dwTrackID,
-            0,ptVideoFrameInfo->tVideoEncParam.dwWidth,ptVideoFrameInfo->tVideoEncParam.dwHeight);
+            0,ptVideoFrameInfo->tVideoEncParam.dwWidth,ptVideoFrameInfo->tVideoEncParam.dwHeight,ptVideoFrameInfo->eRotationDegrees);
         }
         else if(FMP4_AUDIO == i_dwTrakHandlerType)
         {
@@ -3257,6 +3293,7 @@ int FMP4::CreateHeader(list<T_Fmp4FrameInfo> * i_pFMP4Media,unsigned char *o_pbB
             tVideoFrameInfo.tVideoEncParam.dwWidth= iter->tVideoEncParam.dwWidth;
             tVideoFrameInfo.tVideoEncParam.dwHeight= iter->tVideoEncParam.dwHeight;
             tVideoFrameInfo.iEncExtraDataLen= iter->iEncExtraDataLen;
+            tVideoFrameInfo.eRotationDegrees= iter->eRotationDegrees;
             memcpy(tVideoFrameInfo.abEncExtraData,iter->abEncExtraData,tVideoFrameInfo.iEncExtraDataLen);
             break;
         }
@@ -3429,6 +3466,7 @@ int FMP4::CreateSegment(list<T_Fmp4FrameInfo> * i_pFMP4Media,unsigned int i_dwSe
             aptVideoSampleInfo[j].tVideoEncParam.dwWidth= iter->tVideoEncParam.dwWidth;
             aptVideoSampleInfo[j].tVideoEncParam.dwHeight= iter->tVideoEncParam.dwHeight;
             aptVideoSampleInfo[j].iEncExtraDataLen= iter->iEncExtraDataLen;
+            aptVideoSampleInfo[j].eRotationDegrees= iter->eRotationDegrees;
             memcpy(aptVideoSampleInfo[j].abEncExtraData,iter->abEncExtraData,aptVideoSampleInfo[j].iEncExtraDataLen);
             j++;
         }

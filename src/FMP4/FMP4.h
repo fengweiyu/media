@@ -87,6 +87,14 @@ typedef enum
     FMP4_ENC_MP3,
     FMP4_ENC_LLPCM,// Linear PCM, little endian
 }E_FMP4_ENC_TYPE;
+typedef enum
+{
+    FMP4_ROTATION_DEGREES_0 = 0,
+    FMP4_ROTATION_DEGREES_90,
+    FMP4_ROTATION_DEGREES_180,
+    FMP4_ROTATION_DEGREES_270,
+}E_FMP4_ROTATION_DEGREES;
+
 typedef struct Fmp4VideoEncParam
 {
     unsigned int dwWidth;//
@@ -113,6 +121,7 @@ typedef struct Fmp4FrameInfo
     T_Fmp4AudioEncParam tAudioEncParam;
 	unsigned char abEncExtraData[512];
 	int iEncExtraDataLen;
+	E_FMP4_ROTATION_DEGREES eRotationDegrees;
 }T_Fmp4FrameInfo;
 
 typedef struct Fmp4MediaInfo

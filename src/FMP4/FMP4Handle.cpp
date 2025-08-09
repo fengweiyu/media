@@ -419,7 +419,7 @@ int FMP4Handle::SaveFrame(T_Fmp4AnnexbFrameInfo *i_ptFmp4FrameInfo)
     tFmp4FrameInfo.tVideoEncParam.dwWidth= i_ptFmp4FrameInfo->tVideoEncParam.dwWidth;
     tFmp4FrameInfo.tAudioEncParam.dwChannels= i_ptFmp4FrameInfo->tAudioEncParam.dwChannels;
     tFmp4FrameInfo.tAudioEncParam.dwBitsPerSample= i_ptFmp4FrameInfo->tAudioEncParam.dwBitsPerSample;
-
+    tFmp4FrameInfo.eRotationDegrees= i_ptFmp4FrameInfo->eRotationDegrees;
     m_FMP4MediaList.push_back(tFmp4FrameInfo);
     return 0;
 }

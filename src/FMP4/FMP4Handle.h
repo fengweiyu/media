@@ -77,6 +77,7 @@ typedef struct Fmp4AnnexbFrameInfo
     T_Fmp4NaluInfo atNaluInfo[12];//存在一帧图像切片成多个(nalu)的情况
     T_Fmp4AnnexbVideoEncParam tVideoEncParam;
     T_Fmp4AudioEncParam tAudioEncParam;
+	E_FMP4_ROTATION_DEGREES eRotationDegrees;
 }T_Fmp4AnnexbFrameInfo;
 
 /*****************************************************************************

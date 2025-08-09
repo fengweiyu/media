@@ -227,7 +227,7 @@ int FMP4HandleInterface::FrameToContainer(T_MediaFrameInfo *i_ptFrame,E_StreamTy
     memcpy(tFmp4FrameInfo.tVideoEncParam.abVPS,i_ptFrame->tVideoEncodeParam.abVPS,sizeof(tFmp4FrameInfo.tVideoEncParam.abVPS));//
     tFmp4FrameInfo.tAudioEncParam.dwChannels= i_ptFrame->tAudioEncodeParam.dwChannels;
     tFmp4FrameInfo.tAudioEncParam.dwBitsPerSample= i_ptFrame->tAudioEncodeParam.dwBitsPerSample;
-    
+    tFmp4FrameInfo.eRotationDegrees= (E_FMP4_ROTATION_DEGREES)i_ptFrame->iRotationDegrees;
     return m_FMP4Handle.GetMuxData(&tFmp4FrameInfo,o_pbBuf,i_dwMaxBufLen,o_piHeaderOffset,i_iForcePack);
 }
 
