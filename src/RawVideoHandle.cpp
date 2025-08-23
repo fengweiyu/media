@@ -822,11 +822,11 @@ int H264Handle::GetFrame(T_MediaFrameInfo *m_ptFrame)
                     iFrameType = iRet;
                     if(STREAM_TYPE_UNKNOW == m_ptFrame->eStreamType)//非文件裸流，外部已认定是一帧，则数据要全部解析完再退出,防止帧切片得不到解析的情况
                         break;//解析出一帧则退出
-                    if(m_ptFrame->dwNaluCount >= MAX_NALU_CNT_ONE_FRAME)
-                    {
-                        MH_LOGW("m_ptFrame->dwNaluCount %d >= MAX_NALU_CNT_ONE_FRAME %d\r\n",m_ptFrame->dwNaluCount,MAX_NALU_CNT_ONE_FRAME);
-                        break;//
-                    }
+                }
+                else if(iRet < 0)
+                {
+                    MH_LOGW("SetH264NaluData err %d\r\n",m_ptFrame->dwNaluCount);
+                    break;//err
                 }
             }
             pcFrameData += 3;
@@ -859,11 +859,11 @@ int H264Handle::GetFrame(T_MediaFrameInfo *m_ptFrame)
                     iFrameType = iRet;
                     if(STREAM_TYPE_UNKNOW == m_ptFrame->eStreamType)//非文件裸流，外部已认定是一帧，则数据要全部解析完再退出,防止帧切片得不到解析的情况
                         break;//解析出一帧则退出
-                    if(m_ptFrame->dwNaluCount >= MAX_NALU_CNT_ONE_FRAME)
-                    {
-                        MH_LOGW("m_ptFrame->dwNaluCount %d >= MAX_NALU_CNT_ONE_FRAME %d\r\n",m_ptFrame->dwNaluCount,MAX_NALU_CNT_ONE_FRAME);
-                        break;//
-                    }
+                }
+                else if(iRet < 0)
+                {
+                    MH_LOGW("SetH264NaluData err %d\r\n",m_ptFrame->dwNaluCount);
+                    break;//err
                 }
             }
             pcFrameData += 4;
@@ -875,7 +875,7 @@ int H264Handle::GetFrame(T_MediaFrameInfo *m_ptFrame)
             iRemainDataLen --;
         }
     }
-    if(pcNaluStartPos != NULL && (iFrameType<=0 ||STREAM_TYPE_UNKNOW != m_ptFrame->eStreamType) && m_ptFrame->dwNaluCount < MAX_NALU_CNT_ONE_FRAME)
+    if(pcNaluStartPos != NULL && (iFrameType<=0 ||STREAM_TYPE_UNKNOW != m_ptFrame->eStreamType))
     {//非文件裸流，外部已认定是一帧，则数据要全部解析完再退出,防止帧切片得不到解析的情况
         iRet=SetH264NaluData(bNaluType,bStartCodeLen,pcNaluStartPos,pcFrameData - pcNaluStartPos,m_ptFrame);
         if(iRet <= 0 && iFrameType<=0)
@@ -901,7 +901,7 @@ int H264Handle::GetFrame(T_MediaFrameInfo *m_ptFrame)
 -Description    : 
 -Input          : 
 -Output         : 
--Return         : eFrameType
+-Return         : <0 err,=0 need more,>0 eFrameType
 * Modify Date     Version        Author           Modification
 * -----------------------------------------------
 * 2023/09/21      V1.0.0         Yu Weifeng       Created
@@ -920,7 +920,12 @@ int H264Handle::SetH264NaluData(unsigned char i_bNaluType,unsigned char i_bStart
     }
     if (i_bNaluType == 12)
     {//去掉填充nalu type
-        return iRet;//过滤无用的nalu
+        return 0;//过滤无用的nalu
+    }
+    if(m_ptFrame->dwNaluCount >= sizeof(m_ptFrame->atNaluInfo)/sizeof(T_MediaNaluInfo))
+    {
+        MH_LOGE("m_ptFrame->dwNaluCount %d >= MAX_NALU_CNT_ONE_FRAME %d\r\n",m_ptFrame->dwNaluCount, sizeof(m_ptFrame->atNaluInfo)/sizeof(T_MediaNaluInfo));
+        return iRet;
     }
     if(m_ptFrame->pbFrameStartPos == NULL)
     {
@@ -983,9 +988,13 @@ int H264Handle::SetH264NaluData(unsigned char i_bNaluType,unsigned char i_bStart
             m_ptFrame->dwSampleRate= VIDEO_H264_SAMPLE_RATE;
             m_ptFrame->eEncType = MEDIA_ENCODE_TYPE_H264;
         }
-        iRet = 0;//解析出一帧则退出
+        iRet = (int)eFrameType;//解析出一帧则退出
     }
-    return eFrameType;
+    else
+    {
+        iRet = 0;
+    }
+    return iRet;
 }
 
 char * H265Handle::m_strVideoFormatName=(char *)VIDEO_ENC_FORMAT_H265_NAME;
@@ -1265,11 +1274,11 @@ int H265Handle::GetFrame(T_MediaFrameInfo *m_ptFrame)
                     iFrameType = iRet;
                     if(STREAM_TYPE_UNKNOW == m_ptFrame->eStreamType)//非文件裸流，外部已认定是一帧，则数据要全部解析完再退出,防止帧切片得不到解析的情况
                         break;//解析出一帧则退出
-                    if(m_ptFrame->dwNaluCount >= MAX_NALU_CNT_ONE_FRAME)
-                    {
-                        MH_LOGW("m_ptFrame->dwNaluCount %d >= MAX_NALU_CNT_ONE_FRAME %d\r\n",m_ptFrame->dwNaluCount,MAX_NALU_CNT_ONE_FRAME);
-                        break;//
-                    }
+                }
+                else if(iRet < 0)
+                {
+                    MH_LOGW("SetH265NaluData err %d\r\n",m_ptFrame->dwNaluCount);
+                    break;//err
                 }
             }
             pcFrameData += 3;
@@ -1302,11 +1311,11 @@ int H265Handle::GetFrame(T_MediaFrameInfo *m_ptFrame)
                     iFrameType = iRet;
                     if(STREAM_TYPE_UNKNOW == m_ptFrame->eStreamType)//非文件裸流，外部已认定是一帧，则数据要全部解析完再退出,防止帧切片得不到解析的情况
                         break;//解析出一帧则退出
-                    if(m_ptFrame->dwNaluCount >= MAX_NALU_CNT_ONE_FRAME)
-                    {
-                        MH_LOGW("m_ptFrame->dwNaluCount %d >= MAX_NALU_CNT_ONE_FRAME %d\r\n",m_ptFrame->dwNaluCount,MAX_NALU_CNT_ONE_FRAME);
-                        break;//
-                    }
+                }
+                else if(iRet < 0)
+                {
+                    MH_LOGW("SetH265NaluData err %d\r\n",m_ptFrame->dwNaluCount);
+                    break;//err
                 }
             }
             pcFrameData += 4;
@@ -1318,7 +1327,7 @@ int H265Handle::GetFrame(T_MediaFrameInfo *m_ptFrame)
             iRemainDataLen --;
         }
     }
-    if(pcNaluStartPos != NULL && (iFrameType<=0 ||STREAM_TYPE_UNKNOW != m_ptFrame->eStreamType) && m_ptFrame->dwNaluCount < MAX_NALU_CNT_ONE_FRAME)
+    if(pcNaluStartPos != NULL && (iFrameType<=0 ||STREAM_TYPE_UNKNOW != m_ptFrame->eStreamType))
     {//非文件裸流，外部已认定是一帧，则数据要全部解析完再退出,防止帧切片得不到解析的情况
         iRet=SetH265NaluData(bNaluType,bStartCodeLen,pcNaluStartPos,pcFrameData - pcNaluStartPos,m_ptFrame);//包括类型减4开始码
         if(iRet <= 0 && iFrameType<=0)
@@ -1342,7 +1351,7 @@ int H265Handle::GetFrame(T_MediaFrameInfo *m_ptFrame)
 -Description    : 
 -Input          : 
 -Output         : 
--Return         : eFrameType
+-Return         : <0 err,=0 need more,>0 eFrameType
 * Modify Date     Version        Author           Modification
 * -----------------------------------------------
 * 2023/09/21      V1.0.0         Yu Weifeng       Created
@@ -1359,7 +1368,11 @@ int H265Handle::SetH265NaluData(unsigned char i_bNaluType,unsigned char i_bStart
         MH_LOGE("SetH265NaluData NULL %d \r\n", iRet);
         return iRet;
     }
-    
+    if(m_ptFrame->dwNaluCount >= sizeof(m_ptFrame->atNaluInfo)/sizeof(T_MediaNaluInfo))
+    {
+        MH_LOGE("m_ptFrame->dwNaluCount %d >= MAX_NALU_CNT_ONE_FRAME %d\r\n",m_ptFrame->dwNaluCount, sizeof(m_ptFrame->atNaluInfo)/sizeof(T_MediaNaluInfo));
+        return iRet;
+    }
     if(m_ptFrame->pbFrameStartPos == NULL)
     {
         m_ptFrame->pbFrameStartPos = i_pbNaluData;
@@ -1417,8 +1430,12 @@ int H265Handle::SetH265NaluData(unsigned char i_bNaluType,unsigned char i_bStart
             m_ptFrame->dwSampleRate= VIDEO_H265_SAMPLE_RATE;
             m_ptFrame->eEncType = MEDIA_ENCODE_TYPE_H265;
         }
-        iRet = 0;//解析出一帧则退出
+        iRet = (int)eFrameType;//解析出一帧则退出
     }
-    return eFrameType;
+    else
+    {
+        iRet = 0;
+    }
+    return iRet;
 }
 

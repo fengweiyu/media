@@ -700,7 +700,11 @@ int FlvParseHandle::GetVideoDataNalu(unsigned char *i_pbVideoData,int i_iDataLen
             iVideoDataLen += dwNaluLen;
             iProcessedLen+=dwNaluLen;
         }
-        
+        if(m_ptFrameInfo->dwNaluCount >= sizeof(m_ptFrameInfo->atNaluInfo)/sizeof(T_MediaNaluInfo))
+        {
+            MH_LOGE("m_ptFrame->dwNaluCount %d >= MAX_NALU_CNT_ONE_FRAME %d\r\n",m_ptFrameInfo->dwNaluCount, sizeof(m_ptFrameInfo->atNaluInfo)/sizeof(T_MediaNaluInfo));
+            break;
+        }
         m_ptFrameInfo->atNaluInfo[m_ptFrameInfo->dwNaluCount].dwDataLen = &o_pbVideoData[iVideoDataLen]-m_ptFrameInfo->atNaluInfo[m_ptFrameInfo->dwNaluCount].pbData;
         m_ptFrameInfo->dwNaluCount++;
     }
