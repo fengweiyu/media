@@ -1787,6 +1787,11 @@ int MediaConvert::ParseH264NaluFromFrame(T_MediaFrameInfo *m_ptFrame)
                     if(STREAM_TYPE_UNKNOW == m_ptFrame->eStreamType)//非文件裸流，外部已认定是一帧，则数据要全部解析完再退出,防止帧切片得不到解析的情况
                         break;//解析出一帧则退出
                 }
+                else if(iRet < 0)
+                {
+                    printf("SetH264NaluData err %d\r\n",m_ptFrame->dwNaluCount);
+                    break;//err
+                }
             }
             pcFrameData += 3;
             iRemainDataLen -= 3;
@@ -1818,6 +1823,11 @@ int MediaConvert::ParseH264NaluFromFrame(T_MediaFrameInfo *m_ptFrame)
                     iFrameType = iRet;
                     if(STREAM_TYPE_UNKNOW == m_ptFrame->eStreamType)//非文件裸流，外部已认定是一帧，则数据要全部解析完再退出,防止帧切片得不到解析的情况
                         break;//解析出一帧则退出
+                }
+                else if(iRet < 0)
+                {
+                    printf("SetH264NaluData err %d\r\n",m_ptFrame->dwNaluCount);
+                    break;//err
                 }
             }
             pcFrameData += 4;
@@ -1911,6 +1921,11 @@ int MediaConvert::ParseH265NaluFromFrame(T_MediaFrameInfo *m_ptFrame)
                     if(STREAM_TYPE_UNKNOW == m_ptFrame->eStreamType)//非文件裸流，外部已认定是一帧，则数据要全部解析完再退出,防止帧切片得不到解析的情况
                         break;//解析出一帧则退出
                 }
+                else if(iRet < 0)
+                {
+                    printf("SetH265NaluData err %d\r\n",m_ptFrame->dwNaluCount);
+                    break;//err
+                }
             }
             pcFrameData += 3;
             iRemainDataLen -= 3;
@@ -1942,6 +1957,11 @@ int MediaConvert::ParseH265NaluFromFrame(T_MediaFrameInfo *m_ptFrame)
                     iFrameType = iRet;
                     if(STREAM_TYPE_UNKNOW == m_ptFrame->eStreamType)//非文件裸流，外部已认定是一帧，则数据要全部解析完再退出,防止帧切片得不到解析的情况
                         break;//解析出一帧则退出
+                }
+                else if(iRet < 0)
+                {
+                    printf("SetH265NaluData err %d\r\n",m_ptFrame->dwNaluCount);
+                    break;//err
                 }
             }
             pcFrameData += 4;
@@ -1979,7 +1999,7 @@ int MediaConvert::ParseH265NaluFromFrame(T_MediaFrameInfo *m_ptFrame)
 -Description    : 
 -Input          : 
 -Output         : 
--Return         : eFrameType
+-Return         : <0 err,=0 need more,>0 eFrameType
 * Modify Date     Version        Author           Modification
 * -----------------------------------------------
 * 2023/09/21      V1.0.0         Yu Weifeng       Created
@@ -1996,7 +2016,11 @@ int MediaConvert::SetH264NaluData(unsigned char i_bNaluType,unsigned char i_bSta
         printf("SetH264NaluData NULL %d \r\n", i_iNaluDataLen);
         return iRet;
     }
-    
+    if(m_ptFrame->dwNaluCount >= sizeof(m_ptFrame->atNaluInfo)/sizeof(T_MediaNaluInfo))
+    {
+        printf("m_ptFrame->dwNaluCount %d >= MAX_NALU_CNT_ONE_FRAME %d\r\n",m_ptFrame->dwNaluCount, sizeof(m_ptFrame->atNaluInfo)/sizeof(T_MediaNaluInfo));
+        return iRet;
+    }
     if(m_ptFrame->pbFrameStartPos == NULL)
     {
         m_ptFrame->pbFrameStartPos = i_pbNaluData;
@@ -2049,7 +2073,11 @@ int MediaConvert::SetH264NaluData(unsigned char i_bNaluType,unsigned char i_bSta
             m_ptFrame->dwTimeStamp += 40;//VIDEO_H264_FRAME_INTERVAL*VIDEO_H264_SAMPLE_RATE/1000;
             m_ptFrame->dwSampleRate= 90000;
         }
-        iRet = 0;//解析出一帧则退出
+        iRet = (int)eFrameType;//解析出一帧则退出
+    }
+    else
+    {
+        iRet = 0;
     }
     return eFrameType;
 }
@@ -2058,7 +2086,7 @@ int MediaConvert::SetH264NaluData(unsigned char i_bNaluType,unsigned char i_bSta
 -Description    : 
 -Input          : 
 -Output         : 
--Return         : eFrameType
+-Return         : <0 err,=0 need more,>0 eFrameType
 * Modify Date     Version        Author           Modification
 * -----------------------------------------------
 * 2023/09/21      V1.0.0         Yu Weifeng       Created
@@ -2075,7 +2103,11 @@ int MediaConvert::SetH265NaluData(unsigned char i_bNaluType,unsigned char i_bSta
         printf("SetH265NaluData NULL %d \r\n", iRet);
         return iRet;
     }
-    
+    if(m_ptFrame->dwNaluCount >= sizeof(m_ptFrame->atNaluInfo)/sizeof(T_MediaNaluInfo))
+    {
+        printf("m_ptFrame->dwNaluCount %d >= MAX_NALU_CNT_ONE_FRAME %d\r\n",m_ptFrame->dwNaluCount, sizeof(m_ptFrame->atNaluInfo)/sizeof(T_MediaNaluInfo));
+        return iRet;
+    }
     if(m_ptFrame->pbFrameStartPos == NULL)
     {
         m_ptFrame->pbFrameStartPos = i_pbNaluData;
@@ -2124,7 +2156,11 @@ int MediaConvert::SetH265NaluData(unsigned char i_bNaluType,unsigned char i_bSta
             m_ptFrame->dwTimeStamp += 40;//VIDEO_H264_FRAME_INTERVAL*VIDEO_H264_SAMPLE_RATE/1000;
             m_ptFrame->dwSampleRate= 90000;
         }
-        iRet = 0;//解析出一帧则退出
+        iRet = (int)eFrameType;//解析出一帧则退出
+    }
+    else
+    {
+        iRet = 0;
     }
     return eFrameType;
 }
